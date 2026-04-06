@@ -78,15 +78,16 @@ Submodules under `modules/` are pinned so child-module behavior remains fixed wh
 - [x] Scope defined
 - [x] Architectural contrasts identified
 - [x] Repo initialized at `orange-dot/orange-dot-supabase-sdk`
+- [x] Solution skeleton + csproj
+- [x] URL derivation with table-driven tests
+- [x] GitHub Actions build/test CI
 - [x] Verification spec scaffolded
 - [x] Auth propagation TLA+ model checked with TLC
 - [ ] Submodules wired
-- [ ] Solution skeleton + csproj
 - [ ] Orchestrator client: construction path + DI
 - [ ] Orchestrator client: auth state observable
 - [ ] Orchestrator client: typed lifecycle states
 - [ ] Observability wiring
-- [ ] URL derivation with table-driven tests
 - [ ] Stateless client
 - [ ] Supabase table wrapper
 - [ ] Typed error taxonomy
