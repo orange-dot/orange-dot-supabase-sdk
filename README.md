@@ -63,6 +63,7 @@ Submodules under `modules/` are pinned so child-module behavior remains fixed wh
 
 - Target implementation window: 5-7 days.
 - Prototype scope notes are recorded in [`docs/decision-log.md`](docs/decision-log.md).
+- Verification notes currently center on one proved artifact: [`spec/tla/AuthPropagation.tla`](spec/tla/AuthPropagation.tla), with the recorded TLC run in [`spec/tla/README.md`](spec/tla/README.md).
 
 ## Documentation
 
@@ -70,12 +71,15 @@ Submodules under `modules/` are pinned so child-module behavior remains fixed wh
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — Build order, cut list, and success criteria.
 - [`docs/decision-log.md`](docs/decision-log.md) — Prototype scope and working split.
 - [`docs/project-positioning.md`](docs/project-positioning.md) — Repository scope summary.
+- [`spec/README.md`](spec/README.md) — Verification-oriented artifacts: invariants, authority model, state machines, verified auth propagation TLA+, and replay vectors.
 
 ## Status checklist
 
 - [x] Scope defined
 - [x] Architectural contrasts identified
 - [x] Repo initialized at `orange-dot/orange-dot-supabase-sdk`
+- [x] Verification spec scaffolded
+- [x] Auth propagation TLA+ model checked with TLC
 - [ ] Submodules wired
 - [ ] Solution skeleton + csproj
 - [ ] Orchestrator client: construction path + DI

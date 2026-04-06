@@ -1,0 +1,30 @@
+{
+  "id": "lifecycle_005_no_public_operation_before_ready",
+  "title": "A pre-ready operation is denied and a post-ready operation is allowed",
+  "initial_state": {
+    "phase": "Configured",
+    "child_calls": 0,
+    "public_attempts": 0,
+    "public_denied": 0
+  },
+  "events": [
+    { "type": "attempt_public_operation" },
+    { "type": "load_persisted_session_start" },
+    { "type": "load_persisted_session_complete" },
+    { "type": "initialize_start" },
+    { "type": "initialize_complete" },
+    { "type": "signal_ready" },
+    { "type": "attempt_public_operation" }
+  ],
+  "expected": {
+    "phase": "Ready",
+    "child_calls": 1,
+    "public_attempts": 2,
+    "public_denied": 1
+  },
+  "invariants": [
+    "INV-LC-001",
+    "INV-LC-004"
+  ],
+  "notes": "This is the clearest replay case for the readiness gate."
+}

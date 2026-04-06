@@ -1,0 +1,23 @@
+{
+  "id": "urls_004_trailing_slash_normalization",
+  "title": "Trailing slash is normalized before deriving endpoints",
+  "initial_state": {
+    "base_url": "https://abc.supabase.co/"
+  },
+  "events": [
+    { "type": "derive_all_endpoints" }
+  ],
+  "expected": {
+    "normalized_base_url": "https://abc.supabase.co",
+    "auth_url": "https://abc.supabase.co/auth/v1",
+    "rest_url": "https://abc.supabase.co/rest/v1",
+    "realtime_url": "wss://abc.supabase.co/realtime/v1",
+    "storage_url": "https://abc.supabase.co/storage/v1",
+    "functions_url": "https://abc.supabase.co/functions/v1"
+  },
+  "invariants": [
+    "INV-URL-001",
+    "INV-URL-002"
+  ],
+  "notes": "Normalization must remove the redundant trailing slash before path joins."
+}

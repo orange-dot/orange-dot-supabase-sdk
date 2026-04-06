@@ -1,0 +1,49 @@
+{
+  "id": "auth_003_refresh_newest_wins",
+  "title": "A successful refresh advances the canonical version and bindings converge to it",
+  "initial_state": {
+    "auth_state": "Authenticated",
+    "canonical_version": 1,
+    "pending_refresh_version": 0,
+    "live_bindings": {
+      "Postgrest": true,
+      "Realtime": true,
+      "Storage": false,
+      "Functions": false
+    },
+    "projected_versions": {
+      "Postgrest": 1,
+      "Realtime": 1,
+      "Storage": 0,
+      "Functions": 0
+    }
+  },
+  "events": [
+    { "type": "begin_refresh" },
+    { "type": "complete_refresh" },
+    { "type": "project_binding", "binding": "Postgrest" },
+    { "type": "project_binding", "binding": "Realtime" }
+  ],
+  "expected": {
+    "auth_state": "Authenticated",
+    "canonical_version": 2,
+    "pending_refresh_version": 0,
+    "live_bindings": {
+      "Postgrest": true,
+      "Realtime": true,
+      "Storage": false,
+      "Functions": false
+    },
+    "projected_versions": {
+      "Postgrest": 2,
+      "Realtime": 2,
+      "Storage": 0,
+      "Functions": 0
+    }
+  },
+  "invariants": [
+    "INV-AU-003",
+    "INV-BD-001"
+  ],
+  "notes": "Existing live bindings may lag briefly but must converge to the new canonical version."
+}
