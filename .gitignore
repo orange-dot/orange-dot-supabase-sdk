@@ -1,1 +1,4 @@
 spec/tla/states/
+**/bin/
+**/obj/
+TestResults/
