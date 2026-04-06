@@ -83,13 +83,13 @@ Submodules under `modules/` are pinned so child-module behavior remains fixed wh
 - [x] GitHub Actions build/test CI
 - [x] Verification spec scaffolded
 - [x] Auth propagation TLA+ model checked with TLC
+- [x] Orchestrator client: auth state observable
+- [x] Typed error taxonomy
+- [x] Orchestrator client: typed lifecycle states
 - [ ] Submodules wired
 - [ ] Orchestrator client: construction path + DI
-- [ ] Orchestrator client: auth state observable
-- [ ] Orchestrator client: typed lifecycle states
 - [ ] Observability wiring
 - [ ] Stateless client
 - [ ] Supabase table wrapper
-- [ ] Typed error taxonomy
 - [ ] README with public overview
 - [ ] Integration tests against local Supabase
