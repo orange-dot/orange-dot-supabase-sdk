@@ -86,8 +86,8 @@ Submodules under `modules/` are pinned so child-module behavior remains fixed wh
 - [x] Orchestrator client: auth state observable
 - [x] Typed error taxonomy
 - [x] Orchestrator client: typed lifecycle states
+- [x] Orchestrator client: construction path + DI
 - [ ] Submodules wired
-- [ ] Orchestrator client: construction path + DI
 - [ ] Observability wiring
 - [ ] Stateless client
 - [ ] Supabase table wrapper
