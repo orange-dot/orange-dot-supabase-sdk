@@ -1,10 +1,11 @@
 using System;
+using System.Threading.Tasks;
 using OrangeDot.Supabase.Errors;
 using OrangeDot.Supabase.Urls;
 
 namespace OrangeDot.Supabase;
 
-public sealed class SupabaseClient
+public sealed class SupabaseClient : ISupabaseClient
 {
     internal SupabaseClient(LifecycleSnapshot snapshot)
     {
@@ -12,6 +13,8 @@ public sealed class SupabaseClient
         AnonKey = snapshot.AnonKey;
         Urls = snapshot.Urls;
     }
+
+    public Task Ready { get; } = Task.CompletedTask;
 
     public string Url { get; }
 
