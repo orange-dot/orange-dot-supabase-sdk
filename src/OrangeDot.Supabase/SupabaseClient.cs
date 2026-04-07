@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using OrangeDot.Supabase.Auth;
-using OrangeDot.Supabase.Errors;
 using OrangeDot.Supabase.Internal;
 using OrangeDot.Supabase.Urls;
 
@@ -53,42 +51,9 @@ public sealed class SupabaseClient : ISupabaseClient
 
     internal static ConfiguredClient Configure(SupabaseOptions options, SupabaseRuntimeContext runtimeContext)
     {
-        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(runtimeContext);
+        var snapshot = SupabaseConfigurationSnapshotFactory.Create(options, nameof(Configure));
 
-        if (string.IsNullOrWhiteSpace(options.Url))
-        {
-            throw new SupabaseConfigurationException(
-                SupabaseErrorCode.ConfigurationMissing,
-                "Supabase URL is required.",
-                operation: nameof(Configure));
-        }
-
-        if (string.IsNullOrWhiteSpace(options.AnonKey))
-        {
-            throw new SupabaseConfigurationException(
-                SupabaseErrorCode.ConfigurationMissing,
-                "Supabase anon key is required.",
-                operation: nameof(Configure));
-        }
-
-        try
-        {
-            var urls = SupabaseUrls.FromBaseUrl(options.Url!);
-            var snapshot = new LifecycleSnapshot(
-                urls.NormalizedBaseUrl,
-                options.AnonKey!,
-                urls);
-
-            return new ConfiguredClient(snapshot, runtimeContext);
-        }
-        catch (ArgumentException exception)
-        {
-            throw new SupabaseConfigurationException(
-                SupabaseErrorCode.ConfigurationInvalid,
-                "Supabase URL is invalid.",
-                operation: nameof(Configure),
-                innerException: exception);
-        }
+        return new ConfiguredClient(snapshot, runtimeContext);
     }
 }

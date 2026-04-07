@@ -91,7 +91,7 @@ After cloning, initialize the pinned child modules with `git submodule update --
 - [x] Orchestrator client: construction path + DI
 - [x] Submodules wired
 - [x] Observability wiring
-- [ ] Stateless client
+- [x] Stateless client
 - [ ] Supabase table wrapper
 - [ ] README with public overview
 - [ ] Integration tests against local Supabase
