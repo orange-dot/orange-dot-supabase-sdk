@@ -51,6 +51,8 @@ This repository reimplements the **top-level orchestration layer** of the Supaba
 
 Submodules under `modules/` are pinned so child-module behavior remains fixed while the orchestration layer changes. Bugs found below the orchestration boundary are handled as separate upstream issues or PRs in the relevant community module and are not patched locally in this repository.
 
+After cloning, initialize the pinned child modules with `git submodule update --init --recursive`.
+
 ## Design constraints
 
 - `SupabaseOptions` is a standard configure-time options class. It stays mutable during `AddSupabase(...)` / configuration binding, then is treated as immutable after startup.
@@ -87,7 +89,7 @@ Submodules under `modules/` are pinned so child-module behavior remains fixed wh
 - [x] Typed error taxonomy
 - [x] Orchestrator client: typed lifecycle states
 - [x] Orchestrator client: construction path + DI
-- [ ] Submodules wired
+- [x] Submodules wired
 - [ ] Observability wiring
 - [ ] Stateless client
 - [ ] Supabase table wrapper
