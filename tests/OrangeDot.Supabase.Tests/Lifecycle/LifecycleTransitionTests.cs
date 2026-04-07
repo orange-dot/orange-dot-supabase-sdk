@@ -31,6 +31,11 @@ public sealed class LifecycleTransitionTests
         Assert.Equal("anon-key", client.AnonKey);
         Assert.Equal("https://abc.supabase.co", client.Urls.NormalizedBaseUrl);
         Assert.Equal("https://abc.supabase.co/auth/v1", client.Urls.AuthUrl);
+        Assert.NotNull(client.Auth);
+        Assert.NotNull(client.Postgrest);
+        Assert.NotNull(client.Realtime);
+        Assert.NotNull(client.Storage);
+        Assert.NotNull(client.Functions);
     }
 
     [Fact]

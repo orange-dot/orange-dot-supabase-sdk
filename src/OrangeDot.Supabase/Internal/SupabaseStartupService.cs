@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OrangeDot.Supabase.Auth;
 using OrangeDot.Supabase.Observability;
 
 namespace OrangeDot.Supabase.Internal;
@@ -15,17 +16,23 @@ internal sealed class SupabaseStartupService : IHostedService
     private readonly IOptions<SupabaseOptions> _options;
     private readonly SupabaseClientShell _shell;
     private readonly ILogger<SupabaseStartupService> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly AuthStateObserver _authStateObserver;
     private readonly IServiceProvider _services;
 
     public SupabaseStartupService(
         IOptions<SupabaseOptions> options,
         SupabaseClientShell shell,
         ILogger<SupabaseStartupService> logger,
+        ILoggerFactory loggerFactory,
+        AuthStateObserver authStateObserver,
         IServiceProvider services)
     {
         _options = options;
         _shell = shell;
         _logger = logger;
+        _loggerFactory = loggerFactory;
+        _authStateObserver = authStateObserver;
         _services = services;
     }
 
@@ -34,13 +41,15 @@ internal sealed class SupabaseStartupService : IHostedService
         using var activity = SupabaseTelemetry.Source.StartActivity("supabase.startup");
         activity?.SetTag("supabase.path", "hosted");
 
-        var metrics = SupabaseMetrics.TryCreate(_services.GetService(typeof(IMeterFactory)) as IMeterFactory);
+        var meterFactory = _services.GetService(typeof(IMeterFactory)) as IMeterFactory;
+        var metrics = SupabaseMetrics.TryCreate(meterFactory);
 
         _logger.LogInformation("Starting Supabase hosted initialization.");
 
         try
         {
-            var configured = SupabaseClient.Configure(_options.Value);
+            var runtimeContext = new SupabaseRuntimeContext(_authStateObserver, _loggerFactory, meterFactory);
+            var configured = SupabaseClient.Configure(_options.Value, runtimeContext);
             var hydrated = await configured.LoadPersistedSessionAsync().ConfigureAwait(false);
             var client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);
 

@@ -26,6 +26,11 @@ public sealed class SupabaseHostedStartupTests
 
         Assert.Same(firstClient, secondClient);
         Assert.False(firstClient.Ready.IsCompleted);
+        Assert.Throws<InvalidOperationException>(() => _ = firstClient.Auth);
+        Assert.Throws<InvalidOperationException>(() => _ = firstClient.Postgrest);
+        Assert.Throws<InvalidOperationException>(() => _ = firstClient.Realtime);
+        Assert.Throws<InvalidOperationException>(() => _ = firstClient.Storage);
+        Assert.Throws<InvalidOperationException>(() => _ = firstClient.Functions);
         Assert.Throws<InvalidOperationException>(() => _ = firstClient.Url);
         Assert.Throws<InvalidOperationException>(() => _ = firstClient.AnonKey);
         Assert.Throws<InvalidOperationException>(() => _ = firstClient.Urls);
@@ -37,6 +42,11 @@ public sealed class SupabaseHostedStartupTests
         Assert.Equal("https://abc.supabase.co", firstClient.Url);
         Assert.Equal("anon-key", firstClient.AnonKey);
         Assert.Equal("https://abc.supabase.co", firstClient.Urls.NormalizedBaseUrl);
+        Assert.NotNull(firstClient.Auth);
+        Assert.NotNull(firstClient.Postgrest);
+        Assert.NotNull(firstClient.Realtime);
+        Assert.NotNull(firstClient.Storage);
+        Assert.NotNull(firstClient.Functions);
     }
 
     [Fact]
@@ -55,6 +65,11 @@ public sealed class SupabaseHostedStartupTests
 
         Assert.Equal(SupabaseErrorCode.ConfigurationInvalid, startException.ErrorCode);
         Assert.Equal(SupabaseErrorCode.ConfigurationInvalid, readyException.ErrorCode);
+        Assert.Throws<InvalidOperationException>(() => _ = client.Auth);
+        Assert.Throws<InvalidOperationException>(() => _ = client.Postgrest);
+        Assert.Throws<InvalidOperationException>(() => _ = client.Realtime);
+        Assert.Throws<InvalidOperationException>(() => _ = client.Storage);
+        Assert.Throws<InvalidOperationException>(() => _ = client.Functions);
         Assert.Throws<InvalidOperationException>(() => _ = client.Url);
         Assert.Throws<InvalidOperationException>(() => _ = client.AnonKey);
         Assert.Throws<InvalidOperationException>(() => _ = client.Urls);
@@ -73,6 +88,8 @@ public sealed class SupabaseHostedStartupTests
             }),
             shell,
             NullLogger<SupabaseStartupService>.Instance,
+            NullLoggerFactory.Instance,
+            new OrangeDot.Supabase.Auth.AuthStateObserver(),
             services);
 
         using var cancellationTokenSource = new CancellationTokenSource();
@@ -82,6 +99,11 @@ public sealed class SupabaseHostedStartupTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await shell.Ready);
 
         Assert.True(shell.Ready.IsCanceled);
+        Assert.Throws<InvalidOperationException>(() => _ = shell.Auth);
+        Assert.Throws<InvalidOperationException>(() => _ = shell.Postgrest);
+        Assert.Throws<InvalidOperationException>(() => _ = shell.Realtime);
+        Assert.Throws<InvalidOperationException>(() => _ = shell.Storage);
+        Assert.Throws<InvalidOperationException>(() => _ = shell.Functions);
         Assert.Throws<InvalidOperationException>(() => _ = shell.Url);
         Assert.Throws<InvalidOperationException>(() => _ = shell.AnonKey);
         Assert.Throws<InvalidOperationException>(() => _ = shell.Urls);

@@ -34,4 +34,27 @@ public sealed class LifecycleSurfaceTests
             .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
             .ToArray());
     }
+
+    [Fact]
+    public void Client_surface_exposes_child_clients_using_upstream_interfaces()
+    {
+        Assert.Equal(
+            typeof(global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session>),
+            typeof(ISupabaseClient).GetProperty(nameof(ISupabaseClient.Auth))!.PropertyType);
+        Assert.Equal(
+            typeof(global::Supabase.Postgrest.Interfaces.IPostgrestClient),
+            typeof(ISupabaseClient).GetProperty(nameof(ISupabaseClient.Postgrest))!.PropertyType);
+        Assert.Equal(
+            typeof(global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel>),
+            typeof(ISupabaseClient).GetProperty(nameof(ISupabaseClient.Realtime))!.PropertyType);
+        Assert.Equal(
+            typeof(global::Supabase.Storage.Interfaces.IStorageClient<global::Supabase.Storage.Bucket, global::Supabase.Storage.FileObject>),
+            typeof(ISupabaseClient).GetProperty(nameof(ISupabaseClient.Storage))!.PropertyType);
+        Assert.Equal(
+            typeof(global::Supabase.Functions.Interfaces.IFunctionsClient),
+            typeof(ISupabaseClient).GetProperty(nameof(ISupabaseClient.Functions))!.PropertyType);
+        Assert.Equal(
+            typeof(global::Supabase.Postgrest.Interfaces.IPostgrestClient),
+            typeof(SupabaseClient).GetProperty(nameof(SupabaseClient.Postgrest))!.PropertyType);
+    }
 }

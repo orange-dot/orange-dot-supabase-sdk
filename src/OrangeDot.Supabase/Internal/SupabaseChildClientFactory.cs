@@ -10,7 +10,7 @@ internal sealed class SupabaseChildClientFactory
         ArgumentNullException.ThrowIfNull(snapshot);
 
         var staticHeaders = CreateStaticHeaders(snapshot.AnonKey);
-        var dynamicHeaders = CreateHeadersAccessor(snapshot.AnonKey, snapshot.AnonKey);
+        var dynamicAuthHeaders = new DynamicAuthHeaders(snapshot.AnonKey);
 
         var auth = new global::Supabase.Gotrue.Client(new global::Supabase.Gotrue.ClientOptions
         {
@@ -18,7 +18,7 @@ internal sealed class SupabaseChildClientFactory
             Headers = new Dictionary<string, string>(staticHeaders)
         })
         {
-            GetHeaders = dynamicHeaders
+            GetHeaders = dynamicAuthHeaders.Build
         };
 
         var postgrest = new global::Supabase.Postgrest.Client(
@@ -28,7 +28,7 @@ internal sealed class SupabaseChildClientFactory
                 Headers = new Dictionary<string, string>(staticHeaders)
             })
         {
-            GetHeaders = dynamicHeaders
+            GetHeaders = dynamicAuthHeaders.Build
         };
 
         var realtimeOptions = new global::Supabase.Realtime.ClientOptions();
@@ -36,22 +36,22 @@ internal sealed class SupabaseChildClientFactory
 
         var realtime = new global::Supabase.Realtime.Client(snapshot.Urls.RealtimeUrl, realtimeOptions)
         {
-            GetHeaders = dynamicHeaders
+            GetHeaders = dynamicAuthHeaders.Build
         };
 
         var storage = new global::Supabase.Storage.Client(
             snapshot.Urls.StorageUrl,
             headers: new Dictionary<string, string>(staticHeaders))
         {
-            GetHeaders = dynamicHeaders
+            GetHeaders = dynamicAuthHeaders.Build
         };
 
         var functions = new global::Supabase.Functions.Client(snapshot.Urls.FunctionsUrl)
         {
-            GetHeaders = dynamicHeaders
+            GetHeaders = dynamicAuthHeaders.Build
         };
 
-        return new SupabaseChildClients(auth, postgrest, realtime, storage, functions);
+        return new SupabaseChildClients(dynamicAuthHeaders, auth, postgrest, realtime, storage, functions);
     }
 
     internal static Dictionary<string, string> CreateStaticHeaders(string apiKey)
@@ -61,18 +61,6 @@ internal sealed class SupabaseChildClientFactory
         return new Dictionary<string, string>
         {
             ["apikey"] = apiKey
-        };
-    }
-
-    internal static Func<Dictionary<string, string>> CreateHeadersAccessor(string apiKey, string bearerToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(bearerToken);
-
-        return () => new Dictionary<string, string>
-        {
-            ["apikey"] = apiKey,
-            ["Authorization"] = $"Bearer {bearerToken}"
         };
     }
 }
