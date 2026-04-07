@@ -39,4 +39,38 @@ jobs:
         run: dotnet build OrangeDot.Supabase.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test OrangeDot.Supabase.sln --configuration Release --no-build
+        run: dotnet test tests/OrangeDot.Supabase.Tests/OrangeDot.Supabase.Tests.csproj --configuration Release --no-build
+
+  integration-tests:
+    name: ubuntu-latest integration
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    env:
+      ORANGEDOT_SUPABASE_RUN_INTEGRATION: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: Supabase Status
+        run: supabase status
+
+      - name: Integration Test
+        run: dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release
+
+      - name: Docker Containers
+        if: failure()
+        run: docker ps -a

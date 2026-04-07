@@ -2,3 +2,5 @@ spec/tla/states/
 **/bin/
 **/obj/
 TestResults/
+supabase/.branches/
+supabase/.temp/

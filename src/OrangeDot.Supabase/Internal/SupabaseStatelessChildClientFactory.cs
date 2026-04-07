@@ -32,10 +32,10 @@ internal sealed class SupabaseStatelessChildClientFactory
 
         return new global::Supabase.Postgrest.Client(
             snapshot.Urls.RestUrl,
-            new global::Supabase.Postgrest.ClientOptions
-            {
-                Headers = SupabaseChildClientFactory.CreateStaticHeaders(snapshot.AnonKey)
-            });
+            new global::Supabase.Postgrest.ClientOptions())
+        {
+            GetHeaders = () => SupabaseChildClientFactory.CreateStaticHeaders(snapshot.AnonKey)
+        };
     }
 
     internal global::Supabase.Storage.Client CreateStorage(LifecycleSnapshot snapshot)
