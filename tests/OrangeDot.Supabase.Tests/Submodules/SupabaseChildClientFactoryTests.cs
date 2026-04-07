@@ -21,11 +21,12 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.DoesNotContain("Authorization", children.Auth.GetHeaders!().Keys);
 
         Assert.Equal(urls.RestUrl, children.Postgrest.BaseUrl);
-        Assert.Equal("anon-key", children.Postgrest.Options.Headers["apikey"]);
-        Assert.DoesNotContain("Authorization", children.Postgrest.GetHeaders!().Keys);
+        Assert.Empty(children.Postgrest.Options.Headers);
+        Assert.NotNull(children.Postgrest.GetHeaders);
 
         Assert.Equal(urls.RealtimeUrl, ReadPrivateStringField(children.Realtime, "_realtimeUrl"));
         Assert.Equal("anon-key", children.Realtime.Options.Headers["apikey"]);
+        Assert.Equal("anon-key", children.Realtime.Options.Parameters.ApiKey);
         Assert.DoesNotContain("Authorization", children.Realtime.GetHeaders!().Keys);
 
         Assert.Equal(urls.StorageUrl, ReadPublicOrNonPublicStringProperty(children.Storage, "Url"));

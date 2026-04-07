@@ -158,8 +158,8 @@ public sealed class SupabaseStatelessClientTests
 
         Assert.IsType<global::Supabase.Gotrue.StatelessClient>(client.Auth);
         Assert.Equal(client.Urls.RestUrl, postgrest.BaseUrl);
-        Assert.Equal("anon-key", postgrest.Options.Headers["apikey"]);
-        Assert.DoesNotContain("Authorization", postgrest.Options.Headers.Keys);
+        Assert.Empty(postgrest.Options.Headers);
+        Assert.NotNull(postgrest.GetHeaders);
 
         Assert.Equal(client.Urls.StorageUrl, ReadPublicOrNonPublicStringProperty(storage, "Url"));
         Assert.Equal("anon-key", storage.Headers["apikey"]);

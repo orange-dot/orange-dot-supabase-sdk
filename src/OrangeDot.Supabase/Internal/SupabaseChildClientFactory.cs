@@ -23,16 +23,14 @@ internal sealed class SupabaseChildClientFactory
 
         var postgrest = new global::Supabase.Postgrest.Client(
             snapshot.Urls.RestUrl,
-            new global::Supabase.Postgrest.ClientOptions
-            {
-                Headers = new Dictionary<string, string>(staticHeaders)
-            })
+            new global::Supabase.Postgrest.ClientOptions())
         {
             GetHeaders = dynamicAuthHeaders.Build
         };
 
         var realtimeOptions = new global::Supabase.Realtime.ClientOptions();
         realtimeOptions.Headers.Add("apikey", snapshot.AnonKey);
+        realtimeOptions.Parameters.ApiKey = snapshot.AnonKey;
 
         var realtime = new global::Supabase.Realtime.Client(snapshot.Urls.RealtimeUrl, realtimeOptions)
         {

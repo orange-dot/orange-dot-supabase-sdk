@@ -1,97 +1,152 @@
 # orange-dot Supabase C# SDK
 
-Date started: 2026-04-05
-Status: Planning
+[![Build And Test](https://github.com/orange-dot/orange-dot-supabase-sdk/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/orange-dot/orange-dot-supabase-sdk/actions/workflows/build-and-test.yml)
 
-## Scope
+Targets: `net8.0`, `net10.0`
 
-This repository reimplements the **top-level orchestration layer** of the Supabase C# SDK and keeps the service-specific child modules fixed.
+`orange-dot-supabase-sdk` is a source-first reimplementation of the orchestration layer of the Supabase C# SDK. It keeps the upstream child modules pinned and unchanged, and focuses on the top-level client surface where lifecycle, DI, readiness, auth propagation, URL derivation, observability, and table convenience are defined.
 
-- Child modules are consumed from `supabase-community/*-csharp` as git submodules and pinned so child-module behavior remains fixed during orchestration-layer work.
-- Implementation work is limited to the top-level `Supabase/` package surface:
-  - `Supabase/Client.cs`
-  - `Supabase/StatelessClient.cs`
-  - `Supabase/SupabaseTable.cs`
-  - URL derivation
-  - auth header propagation
-  - auth-state observation
-  - session lifecycle orchestration
-- Work is concentrated at the composition boundary where DI, readiness, observability, endpoint derivation, auth propagation, and client lifecycle behavior are defined.
-- Current investigation targets URL derivation, session-load ordering, and auth header propagation fan-out.
+Today the repo includes a working stateful client, a DI/hosted construction path, a stateless client, a realtime-aware `Table<T>()` wrapper, typed orchestration-layer exceptions, unit-test coverage, and an opt-in local-Supabase integration test slice around the composition boundary. It does not yet ship as a NuGet package and does not yet include sample apps.
 
-## Scope boundaries
+> Current status: usable from source, honest about its prototype scope, with sample-app slices still deferred.
 
-### In scope
+## Why this repo exists
 
-- Orchestrator client (equivalent to `Supabase.Client`)
-- Stateless convenience path (equivalent to `Supabase.StatelessClient`)
-- Realtime-aware table wrapper (equivalent to `Supabase.SupabaseTable<T>`)
-- URL derivation for Functions / REST / Realtime / Storage endpoints
-- Auth header and access-token propagation to child clients
-- Auth-state observation and session lifecycle orchestration
-- DI integration (`IServiceCollection` extensions)
-- Observability integration (`ILogger<T>`, `ActivitySource`, `IMeterFactory`)
-- Typed error taxonomy at the orchestration layer
-- Unit + integration tests against a local Supabase stack
+- Typed lifecycle states: construction is `Configure -> LoadPersistedSessionAsync -> InitializeAsync`, so wrong-order startup bugs are not left to prose or convention.
+- Replayable auth observation: child clients react to one auth-state stream instead of imperative token fan-out from the orchestrator.
+- Standard .NET observability: `ILogger<T>`, `ActivitySource`, and `IMeterFactory` are first-class instead of custom debugger singletons.
+- Structured URL derivation: hosted and self-hosted endpoints are derived through `Uri` handling and table-driven tests.
 
-### Out of scope
+See [docs/architecture-contrasts.md](docs/architecture-contrasts.md) for the full design rationale.
 
-- Any change to Gotrue/PostgREST/Realtime/Storage/Functions internals
-- Any work on response shapes or query-builder ergonomics inside child modules
-- Any NuGet publishing workflow
-- Any target outside `net8.0` and `net10.0`
-- Any interop layer for F# or VB.NET
+## What's implemented
 
-### Explicitly deferred
+- `SupabaseClient` with typed lifecycle transitions and child-client accessors: `Auth`, `Postgrest`, `Realtime`, `Storage`, `Functions`
+- `ISupabaseClient` plus `services.AddSupabase(...)` and readiness gating through `Task Ready`
+- `SupabaseStatelessClient` for one-shot and non-DI usage
+- `Table<T>()` and `ISupabaseTable<T>` for PostgREST query chaining plus realtime `.On(...)`
+- `IAuthStateObserver` and auth bindings for header-based clients and realtime
+- `SupabaseUrls` derivation for hosted and self-hosted deployments
+- Standard observability hooks and typed orchestration-layer exceptions
 
-- `supabase-js` feature-parity audit
-- Benchmarks against the community implementation
+## Build From Source
 
-## Child module policy
+This repo consumes pinned upstream child modules as git submodules. Initialize them before building:
 
-Submodules under `modules/` are pinned so child-module behavior remains fixed while the orchestration layer changes. Bugs found below the orchestration boundary are handled as separate upstream issues or PRs in the relevant community module and are not patched locally in this repository.
+```bash
+git clone https://github.com/orange-dot/orange-dot-supabase-sdk.git
+cd orange-dot-supabase-sdk
+git submodule update --init --recursive
+dotnet test OrangeDot.Supabase.sln --configuration Release
+```
 
-After cloning, initialize the pinned child modules with `git submodule update --init --recursive`.
+The library project references the pinned child projects directly from `modules/`.
 
-## Design constraints
+## Integration Tests
 
-- `SupabaseOptions` is a standard configure-time options class. It stays mutable during `AddSupabase(...)` / configuration binding, then is treated as immutable after startup.
-- Console/manual construction keeps the lifecycle explicit: `SupabaseClient.Configure(options) -> LoadPersistedSessionAsync() -> InitializeAsync(ct)`.
-- DI construction uses `services.AddSupabase(...)` plus a hosted startup driver. The resolved `ISupabaseClient` exposes `Task Ready { get; }`, and public operations wait for readiness before first use.
-- Auth propagation uses an `IAuthStateObserver` with replay-on-subscribe semantics so late-starting bindings receive the current auth state.
-- Observability uses `ILogger<T>`, a static `ActivitySource`, and `IMeterFactory` for counters and histograms.
+The repo also carries a minimal local `supabase/` setup and an opt-in integration test project.
 
-## Planning notes
+```bash
+git submodule update --init --recursive
+supabase start
+ORANGEDOT_SUPABASE_RUN_INTEGRATION=1 dotnet test OrangeDot.Supabase.sln --configuration Release
+```
 
-- Target implementation window: 5-7 days.
-- Prototype scope notes are recorded in [`docs/decision-log.md`](docs/decision-log.md).
-- Verification notes currently center on one proved artifact: [`spec/tla/AuthPropagation.tla`](spec/tla/AuthPropagation.tla), with the recorded TLC run in [`spec/tla/README.md`](spec/tla/README.md).
+Without `ORANGEDOT_SUPABASE_RUN_INTEGRATION=1`, integration tests are skipped by default so normal CI and local unit-test runs stay green without a local Supabase stack.
 
-## Documentation
+## Manual Lifecycle
 
-- [`docs/architecture-contrasts.md`](docs/architecture-contrasts.md) — Architectural contrasts against the current orchestration layer, with selected options and code sketches.
-- [`docs/implementation-plan.md`](docs/implementation-plan.md) — Build order, cut list, and success criteria.
-- [`docs/decision-log.md`](docs/decision-log.md) — Prototype scope and working split.
-- [`docs/project-positioning.md`](docs/project-positioning.md) — Repository scope summary.
-- [`spec/README.md`](spec/README.md) — Verification-oriented artifacts: invariants, authority model, state machines, verified auth propagation TLA+, and replay vectors.
+```csharp
+using OrangeDot.Supabase;
 
-## Status checklist
+var configured = SupabaseClient.Configure(new SupabaseOptions
+{
+    Url = "https://abc.supabase.co",
+    AnonKey = "your-anon-key"
+});
 
-- [x] Scope defined
-- [x] Architectural contrasts identified
-- [x] Repo initialized at `orange-dot/orange-dot-supabase-sdk`
-- [x] Solution skeleton + csproj
-- [x] URL derivation with table-driven tests
-- [x] GitHub Actions build/test CI
-- [x] Verification spec scaffolded
-- [x] Auth propagation TLA+ model checked with TLC
-- [x] Orchestrator client: auth state observable
-- [x] Typed error taxonomy
-- [x] Orchestrator client: typed lifecycle states
-- [x] Orchestrator client: construction path + DI
-- [x] Submodules wired
-- [x] Observability wiring
-- [x] Stateless client
-- [x] Supabase table wrapper
-- [ ] README with public overview
-- [ ] Integration tests against local Supabase
+var hydrated = await configured.LoadPersistedSessionAsync();
+var client = await hydrated.InitializeAsync();
+
+var todos = await client.Table<Todo>().Get();
+```
+
+## DI / Hosted Startup
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using OrangeDot.Supabase;
+
+var services = new ServiceCollection();
+
+services.AddSupabase(options =>
+{
+    options.Url = "https://abc.supabase.co";
+    options.AnonKey = "your-anon-key";
+});
+```
+
+```csharp
+public sealed class TodoService
+{
+    private readonly ISupabaseClient _supabase;
+
+    public TodoService(ISupabaseClient supabase)
+    {
+        _supabase = supabase;
+    }
+
+    public async Task<object> GetTodosAsync()
+    {
+        await _supabase.Ready;
+        return await _supabase.Table<Todo>().Get();
+    }
+}
+```
+
+## Stateless Client
+
+```csharp
+using OrangeDot.Supabase;
+
+var client = SupabaseStatelessClient.Create(new SupabaseOptions
+{
+    Url = "https://abc.supabase.co",
+    AnonKey = "your-anon-key"
+});
+
+var session = await client.Auth.SignIn(
+    "user@example.com",
+    "password",
+    client.AuthOptions);
+
+var todos = await client.Postgrest.Table<Todo>().Get();
+```
+
+## Table Wrapper
+
+`Table<T>()` keeps PostgREST query chaining on the wrapper and adds table-scoped realtime subscriptions.
+
+```csharp
+using Supabase.Realtime.PostgresChanges;
+
+var channel = await client.Table<Todo>().On(
+    PostgresChangesOptions.ListenType.Updates,
+    (_, change) => Console.WriteLine(change.EventType),
+    filter: "id=eq.7");
+```
+
+`Where(...)`, `Filter(...)`, and other PostgREST query operators affect HTTP queries only. Realtime filters must be passed explicitly to `.On(...)`.
+
+## Further Reading
+
+- [Architecture contrasts](docs/architecture-contrasts.md)
+- [Prototype scope / decision log](docs/decision-log.md)
+- [Project positioning](docs/project-positioning.md)
+- [Verification artifacts](spec/README.md)
+
+## Current Limitations
+
+- Source-first repo only; no NuGet publishing flow yet
+- No sample applications in the repo yet
+- Child modules under `modules/` are pinned upstream dependencies and are not patched locally
