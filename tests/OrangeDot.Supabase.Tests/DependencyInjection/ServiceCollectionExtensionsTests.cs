@@ -36,6 +36,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         var options = provider.GetRequiredService<IOptions<SupabaseOptions>>().Value;
         var observer = provider.GetRequiredService<IAuthStateObserver>();
+        var concreteObserver = provider.GetRequiredService<AuthStateObserver>();
         var firstClient = provider.GetRequiredService<ISupabaseClient>();
         var secondClient = provider.GetRequiredService<ISupabaseClient>();
         var hostedServices = provider.GetServices<IHostedService>().ToArray();
@@ -43,6 +44,7 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Equal("https://abc.supabase.co/", options.Url);
         Assert.Equal("anon-key", options.AnonKey);
         Assert.IsType<AuthStateObserver>(observer);
+        Assert.Same(concreteObserver, observer);
         Assert.Same(firstClient, secondClient);
         Assert.Single(hostedServices);
         Assert.IsType<SupabaseStartupService>(hostedServices[0]);
@@ -73,6 +75,11 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Equal("https://seeded.supabase.co", client.Url);
         Assert.Equal("seeded-anon-key", client.AnonKey);
         Assert.Equal("https://seeded.supabase.co", client.Urls.NormalizedBaseUrl);
+        Assert.NotNull(client.Auth);
+        Assert.NotNull(client.Postgrest);
+        Assert.NotNull(client.Realtime);
+        Assert.NotNull(client.Storage);
+        Assert.NotNull(client.Functions);
     }
 
     private sealed record OptionSeed(string Url, string AnonKey);

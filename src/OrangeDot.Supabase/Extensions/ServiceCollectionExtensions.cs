@@ -34,7 +34,8 @@ public static class ServiceCollectionExtensions
             return Microsoft.Extensions.Options.Options.Create(options);
         });
 
-        services.TryAddSingleton<IAuthStateObserver, AuthStateObserver>();
+        services.TryAddSingleton<AuthStateObserver>();
+        services.TryAddSingleton<IAuthStateObserver>(serviceProvider => serviceProvider.GetRequiredService<AuthStateObserver>());
         services.TryAddSingleton<SupabaseClientShell>();
         services.TryAddSingleton<ISupabaseClient>(serviceProvider => serviceProvider.GetRequiredService<SupabaseClientShell>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, SupabaseStartupService>());

@@ -17,6 +17,16 @@ internal sealed class SupabaseClientShell : ISupabaseClient
 
     public Task Ready => _readySource.Task;
 
+    public global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session> Auth => GetReadyClient().Auth;
+
+    public global::Supabase.Postgrest.Interfaces.IPostgrestClient Postgrest => GetReadyClient().Postgrest;
+
+    public global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> Realtime => GetReadyClient().Realtime;
+
+    public global::Supabase.Storage.Interfaces.IStorageClient<global::Supabase.Storage.Bucket, global::Supabase.Storage.FileObject> Storage => GetReadyClient().Storage;
+
+    public global::Supabase.Functions.Interfaces.IFunctionsClient Functions => GetReadyClient().Functions;
+
     public string Url => GetReadyClient().Url;
 
     public string AnonKey => GetReadyClient().AnonKey;

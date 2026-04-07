@@ -58,6 +58,9 @@ public sealed class SupabaseObservabilityTests
         var metrics = new SupabaseMetrics(meterFactory);
 
         metrics.RecordStartup("success");
+        metrics.RecordAuthStateChange("authenticated");
+        metrics.RecordAuthTokenRefresh();
+        metrics.RecordAuthBindingFailure("publish");
 
         var created = Assert.Single(meterFactory.CreatedMeters);
         Assert.Equal("Supabase.Client", created.Name);
