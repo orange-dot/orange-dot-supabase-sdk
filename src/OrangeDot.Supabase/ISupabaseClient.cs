@@ -15,6 +15,9 @@ public interface ISupabaseClient
 
     global::Supabase.Functions.Interfaces.IFunctionsClient Functions { get; }
 
+    ISupabaseTable<TModel> Table<TModel>()
+        where TModel : global::Supabase.Postgrest.Models.BaseModel, new();
+
     string Url { get; }
 
     string AnonKey { get; }
