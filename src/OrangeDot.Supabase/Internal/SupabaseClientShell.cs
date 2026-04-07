@@ -27,6 +27,10 @@ internal sealed class SupabaseClientShell : ISupabaseClient
 
     public global::Supabase.Functions.Interfaces.IFunctionsClient Functions => GetReadyClient().Functions;
 
+    public ISupabaseTable<TModel> Table<TModel>()
+        where TModel : global::Supabase.Postgrest.Models.BaseModel, new()
+        => GetReadyClient().Table<TModel>();
+
     public string Url => GetReadyClient().Url;
 
     public string AnonKey => GetReadyClient().AnonKey;
