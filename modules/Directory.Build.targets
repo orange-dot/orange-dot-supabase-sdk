@@ -1,0 +1,11 @@
+<Project>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Gotrue' or '$(MSBuildProjectName)' == 'Postgrest' or '$(MSBuildProjectName)' == 'Realtime' or '$(MSBuildProjectName)' == 'Storage' or '$(MSBuildProjectName)' == 'Functions'">
+    <PackageReference Remove="Supabase.Core" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)core-csharp/Core/Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Realtime'">
+    <PackageReference Remove="Supabase.Postgrest" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)postgrest-csharp/Postgrest/Postgrest.csproj" />
+  </ItemGroup>
+</Project>

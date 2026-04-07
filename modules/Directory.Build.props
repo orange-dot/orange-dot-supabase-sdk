@@ -1,0 +1,3 @@
+<Project>
+  <!-- Stop repo-root Directory.Build.props from cascading into pinned child modules. -->
+</Project>

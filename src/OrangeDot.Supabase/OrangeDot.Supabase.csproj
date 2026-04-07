@@ -5,4 +5,22 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\modules\core-csharp\Core\Core.csproj" />
+    <ProjectReference Include="..\..\modules\functions-csharp\Functions\Functions.csproj" />
+    <ProjectReference Include="..\..\modules\gotrue-csharp\Gotrue\Gotrue.csproj" />
+    <ProjectReference Include="..\..\modules\postgrest-csharp\Postgrest\Postgrest.csproj" />
+    <ProjectReference Include="..\..\modules\realtime-csharp\Realtime\Realtime.csproj" />
+    <ProjectReference Include="..\..\modules\storage-csharp\Storage\Storage.csproj" />
+  </ItemGroup>
+
+  <Target Name="ValidatePinnedChildModules" BeforeTargets="CollectPackageReferences;Build">
+    <Error Condition="!Exists('..\..\modules\core-csharp\Core\Core.csproj')" Text="Missing pinned child modules. Run 'git submodule update --init --recursive'." />
+    <Error Condition="!Exists('..\..\modules\functions-csharp\Functions\Functions.csproj')" Text="Missing pinned child modules. Run 'git submodule update --init --recursive'." />
+    <Error Condition="!Exists('..\..\modules\gotrue-csharp\Gotrue\Gotrue.csproj')" Text="Missing pinned child modules. Run 'git submodule update --init --recursive'." />
+    <Error Condition="!Exists('..\..\modules\postgrest-csharp\Postgrest\Postgrest.csproj')" Text="Missing pinned child modules. Run 'git submodule update --init --recursive'." />
+    <Error Condition="!Exists('..\..\modules\realtime-csharp\Realtime\Realtime.csproj')" Text="Missing pinned child modules. Run 'git submodule update --init --recursive'." />
+    <Error Condition="!Exists('..\..\modules\storage-csharp\Storage\Storage.csproj')" Text="Missing pinned child modules. Run 'git submodule update --init --recursive'." />
+  </Target>
 </Project>
