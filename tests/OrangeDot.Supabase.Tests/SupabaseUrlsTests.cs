@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
+using OrangeDot.Supabase.Tests.Spec;
 using OrangeDot.Supabase.Urls;
 using Xunit;
 
@@ -11,7 +8,7 @@ namespace OrangeDot.Supabase.Tests;
 public sealed class SupabaseUrlsTests
 {
     public static TheoryData<string> UrlVectorPaths =>
-        new(FindUrlVectorPaths().ToArray());
+        SpecVectorTestSupport.CreateVectorPathTheoryData("urls");
 
     [Theory]
     [MemberData(nameof(UrlVectorPaths))]
@@ -69,45 +66,8 @@ public sealed class SupabaseUrlsTests
 
     private static UrlVector DeserializeVector(string vectorPath)
     {
-        var json = File.ReadAllText(vectorPath);
-        var vector = JsonSerializer.Deserialize<UrlVector>(json, SerializerOptions);
-
-        return vector ?? throw new InvalidOperationException($"Failed to deserialize vector: {vectorPath}");
+        return SpecVectorTestSupport.Deserialize<UrlVector>(vectorPath);
     }
-
-    private static IEnumerable<string> FindUrlVectorPaths()
-    {
-        var repoRoot = FindRepoRoot();
-        var vectorsPath = Path.Combine(repoRoot, "spec", "test-vectors", "urls");
-
-        return Directory.GetFiles(vectorsPath, "*.json", SearchOption.TopDirectoryOnly)
-            .OrderBy(path => path, StringComparer.Ordinal);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (current is not null)
-        {
-            var solutionPath = Path.Combine(current.FullName, "OrangeDot.Supabase.sln");
-            var specPath = Path.Combine(current.FullName, "spec", "test-vectors", "urls");
-
-            if (File.Exists(solutionPath) && Directory.Exists(specPath))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new InvalidOperationException("Could not locate repository root from test execution directory.");
-    }
-
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-    };
 
     public sealed class UrlVector
     {
