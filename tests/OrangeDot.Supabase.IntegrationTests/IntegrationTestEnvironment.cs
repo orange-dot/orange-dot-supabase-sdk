@@ -118,6 +118,7 @@ internal static class IntegrationTestEnvironment
             $"{settings.Url}/storage/v1/object/list/{IntegrationBucketName}");
 
         request.Headers.Add("apikey", settings.AnonKey);
+        request.Headers.Add("Authorization", $"Bearer {settings.AnonKey}");
         request.Content = JsonContent.Create(new
         {
             prefix = string.Empty,
