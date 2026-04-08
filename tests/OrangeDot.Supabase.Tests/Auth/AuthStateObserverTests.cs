@@ -270,6 +270,7 @@ public sealed class AuthStateObserverTests
 
     private static AuthState.Authenticated CreateAuthenticatedState(int sequence) =>
         new(
+            sequence,
             $"access-{sequence}",
             $"refresh-{sequence}",
             DateTimeOffset.UnixEpoch.AddMinutes(sequence));

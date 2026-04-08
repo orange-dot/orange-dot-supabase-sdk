@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Reflection;
 using Xunit;
@@ -56,5 +57,14 @@ public sealed class LifecycleSurfaceTests
         Assert.Equal(
             typeof(global::Supabase.Postgrest.Interfaces.IPostgrestClient),
             typeof(SupabaseClient).GetProperty(nameof(SupabaseClient.Postgrest))!.PropertyType);
+    }
+
+    [Fact]
+    public void Lifecycle_surface_exposes_disposal_across_public_phases()
+    {
+        Assert.Contains(typeof(IDisposable), typeof(ConfiguredClient).GetInterfaces());
+        Assert.Contains(typeof(IDisposable), typeof(HydratedClient).GetInterfaces());
+        Assert.Contains(typeof(IDisposable), typeof(SupabaseClient).GetInterfaces());
+        Assert.Contains(typeof(IDisposable), typeof(ISupabaseClient).GetInterfaces());
     }
 }

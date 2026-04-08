@@ -7,6 +7,7 @@ internal sealed class DynamicAuthHeaders
 {
     private readonly string _apiKey;
     private volatile string? _accessToken;
+    private volatile string? _authorizationHeaderValue;
 
     internal DynamicAuthHeaders(string apiKey)
     {
@@ -20,11 +21,13 @@ internal sealed class DynamicAuthHeaders
         ArgumentException.ThrowIfNullOrWhiteSpace(accessToken);
 
         _accessToken = accessToken;
+        _authorizationHeaderValue = $"Bearer {accessToken}";
     }
 
     internal void ClearAccessToken()
     {
         _accessToken = null;
+        _authorizationHeaderValue = null;
     }
 
     internal Dictionary<string, string> Build()
@@ -34,11 +37,11 @@ internal sealed class DynamicAuthHeaders
             ["apikey"] = _apiKey
         };
 
-        var accessToken = _accessToken;
+        var authorizationHeaderValue = _authorizationHeaderValue;
 
-        if (!string.IsNullOrWhiteSpace(accessToken))
+        if (!string.IsNullOrWhiteSpace(authorizationHeaderValue) && !string.IsNullOrWhiteSpace(_accessToken))
         {
-            headers["Authorization"] = $"Bearer {accessToken}";
+            headers["Authorization"] = authorizationHeaderValue;
         }
 
         return headers;

@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using OrangeDot.Supabase.Urls;
@@ -9,6 +10,7 @@ internal sealed class SupabaseClientShell : ISupabaseClient
 {
     private readonly ILogger<SupabaseClientShell> _logger;
     private readonly TaskCompletionSource<SupabaseClient> _readySource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _disposed;
 
     public SupabaseClientShell(ILogger<SupabaseClientShell> logger)
     {
@@ -37,9 +39,31 @@ internal sealed class SupabaseClientShell : ISupabaseClient
 
     public SupabaseUrls Urls => GetReadyClient().Urls;
 
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        if (_readySource.Task.IsCompletedSuccessfully)
+        {
+            _readySource.Task.GetAwaiter().GetResult().Dispose();
+            return;
+        }
+
+        _readySource.TrySetException(new ObjectDisposedException(nameof(SupabaseClientShell)));
+    }
+
     internal void SetInitializedClient(SupabaseClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
+
+        if (_disposed != 0)
+        {
+            client.Dispose();
+            return;
+        }
 
         if (_readySource.TrySetResult(client))
         {
@@ -67,6 +91,8 @@ internal sealed class SupabaseClientShell : ISupabaseClient
 
     private SupabaseClient GetReadyClient()
     {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+
         if (!_readySource.Task.IsCompletedSuccessfully)
         {
             throw new InvalidOperationException(

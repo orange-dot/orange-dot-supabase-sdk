@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using OrangeDot.Supabase.Auth;
 using OrangeDot.Supabase.Observability;
@@ -8,12 +10,18 @@ using OrangeDotAuthState = OrangeDot.Supabase.Auth.AuthState;
 
 namespace OrangeDot.Supabase.Internal;
 
-internal sealed class GotrueAuthStateBridge
+internal sealed class GotrueAuthStateBridge : IDisposable
 {
     private readonly global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session> _auth;
     private readonly AuthStateObserver _observer;
     private readonly ILogger<GotrueAuthStateBridge> _logger;
     private readonly SupabaseMetrics? _metrics;
+    private readonly object _gate = new();
+    private long _canonicalVersion;
+    private long _pendingRefreshVersion;
+    private OrangeDotAuthState _currentState = new OrangeDotAuthState.Anonymous();
+    private OrangeDotAuthState.Authenticated? _lastAuthenticatedState;
+    private int _disposed;
 
     internal GotrueAuthStateBridge(
         global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session> auth,
@@ -36,8 +44,9 @@ internal sealed class GotrueAuthStateBridge
 
     private void PublishCurrentSessionIfPresent()
     {
-        if (TryCreateAuthenticatedState(_auth.CurrentSession, out var authenticatedState))
+        if (TryCreateSessionSnapshot(_auth.CurrentSession, out var sessionSnapshot))
         {
+            var authenticatedState = BuildAuthenticatedState(sessionSnapshot, advanceVersion: true);
             TryPublish(authenticatedState, "initial_session");
         }
     }
@@ -46,25 +55,71 @@ internal sealed class GotrueAuthStateBridge
         global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session> sender,
         GotrueAuthState stateChanged)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        List<(OrangeDotAuthState State, string Source, bool IncrementTokenRefresh)> states = [];
+
         switch (stateChanged)
         {
             case GotrueAuthState.SignedIn:
-                if (TryCreateAuthenticatedState(sender.CurrentSession, out var signedInState))
+                if (TryCreateSessionSnapshot(sender.CurrentSession, out var signedInSnapshot))
                 {
-                    TryPublish(signedInState, stateChanged.ToString());
+                    states.Add((BuildAuthenticatedState(signedInSnapshot, advanceVersion: true), stateChanged.ToString(), false));
+                }
+
+                break;
+            case GotrueAuthState.UserUpdated:
+                if (TryCreateSessionSnapshot(sender.CurrentSession, out var userUpdatedSnapshot))
+                {
+                    states.Add((BuildAuthenticatedState(userUpdatedSnapshot, advanceVersion: true), stateChanged.ToString(), false));
+                }
+                else
+                {
+                    states.Add((BuildFaultedState("User update event did not provide a valid session."), stateChanged.ToString(), false));
                 }
 
                 break;
             case GotrueAuthState.TokenRefreshed:
-                if (TryCreateAuthenticatedState(sender.CurrentSession, out var refreshedState))
+                if (TryClearPendingRefreshForSignedOut())
                 {
-                    TryPublish(refreshedState, stateChanged.ToString(), incrementTokenRefresh: true);
+                    _logger.LogWarning(
+                        "Ignored stale Gotrue auth state {State} because canonical state is signed out.",
+                        stateChanged);
+                    return;
+                }
+
+                if (TryCreateSessionSnapshot(sender.CurrentSession, out var refreshedSnapshot))
+                {
+                    states.Add((BuildRefreshingState(refreshedSnapshot), $"{stateChanged}.begin", false));
+                    states.Add((BuildAuthenticatedState(refreshedSnapshot, advanceVersion: false), stateChanged.ToString(), true));
+                }
+                else
+                {
+                    states.Add((BuildFaultedState("Token refresh completed without a valid session."), stateChanged.ToString(), false));
                 }
 
                 break;
             case GotrueAuthState.SignedOut:
-                TryPublish(new OrangeDotAuthState.SignedOut(), stateChanged.ToString());
+                states.Add((BuildSignedOutState(), stateChanged.ToString(), false));
                 break;
+            case GotrueAuthState.PasswordRecovery:
+            case GotrueAuthState.MfaChallengeVerified:
+                _logger.LogWarning("Observed non-canonical Gotrue auth state {State}. No canonical transition was published.", stateChanged);
+                break;
+            case GotrueAuthState.Shutdown:
+                _logger.LogInformation("Observed Gotrue shutdown event.");
+                break;
+            default:
+                _logger.LogWarning("Unhandled Gotrue auth state: {State}", stateChanged);
+                break;
+        }
+
+        foreach (var (state, source, incrementTokenRefresh) in states)
+        {
+            TryPublish(state, source, incrementTokenRefresh);
         }
     }
 
@@ -102,23 +157,116 @@ internal sealed class GotrueAuthStateBridge
         }
     }
 
-    internal static bool TryCreateAuthenticatedState(
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _auth.RemoveStateChangedListener(HandleAuthStateChanged);
+    }
+
+    internal static bool TryCreateSessionSnapshot(
         global::Supabase.Gotrue.Session? session,
-        out OrangeDotAuthState.Authenticated authenticatedState)
+        out SessionSnapshot snapshot)
     {
         if (session is not null &&
             !string.IsNullOrWhiteSpace(session.AccessToken) &&
             !string.IsNullOrWhiteSpace(session.RefreshToken))
         {
-            authenticatedState = new OrangeDotAuthState.Authenticated(
+            snapshot = new SessionSnapshot(
                 session.AccessToken,
                 session.RefreshToken,
                 CalculateExpiresAt(session));
             return true;
         }
 
-        authenticatedState = null!;
+        snapshot = default;
         return false;
+    }
+
+    private OrangeDotAuthState.Authenticated BuildAuthenticatedState(SessionSnapshot snapshot, bool advanceVersion)
+    {
+        lock (_gate)
+        {
+            if (advanceVersion)
+            {
+                _canonicalVersion++;
+            }
+            else
+            {
+                _canonicalVersion = _pendingRefreshVersion > _canonicalVersion
+                    ? _pendingRefreshVersion
+                    : _canonicalVersion + 1;
+            }
+
+            _pendingRefreshVersion = 0;
+            var state = new OrangeDotAuthState.Authenticated(
+                _canonicalVersion,
+                snapshot.AccessToken,
+                snapshot.RefreshToken,
+                snapshot.ExpiresAt);
+            _currentState = state;
+            _lastAuthenticatedState = state;
+            return state;
+        }
+    }
+
+    private OrangeDotAuthState.Refreshing BuildRefreshingState(SessionSnapshot currentSession)
+    {
+        lock (_gate)
+        {
+            _pendingRefreshVersion = _canonicalVersion + 1;
+            var source = _lastAuthenticatedState;
+
+            var state = new OrangeDotAuthState.Refreshing(
+                _canonicalVersion,
+                _pendingRefreshVersion,
+                source?.AccessToken ?? currentSession.AccessToken,
+                source?.RefreshToken ?? currentSession.RefreshToken,
+                source?.ExpiresAt ?? currentSession.ExpiresAt);
+            _currentState = state;
+            return state;
+        }
+    }
+
+    private OrangeDotAuthState.SignedOut BuildSignedOutState()
+    {
+        lock (_gate)
+        {
+            _pendingRefreshVersion = 0;
+            _lastAuthenticatedState = null;
+            var state = new OrangeDotAuthState.SignedOut(_canonicalVersion);
+            _currentState = state;
+            return state;
+        }
+    }
+
+    private OrangeDotAuthState.Faulted BuildFaultedState(string reason)
+    {
+        lock (_gate)
+        {
+            var state = new OrangeDotAuthState.Faulted(_canonicalVersion, _pendingRefreshVersion, reason);
+            _pendingRefreshVersion = 0;
+            _lastAuthenticatedState = null;
+            _currentState = state;
+            return state;
+        }
+    }
+
+    private bool TryClearPendingRefreshForSignedOut()
+    {
+        lock (_gate)
+        {
+            if (_currentState is not OrangeDotAuthState.SignedOut)
+            {
+                return false;
+            }
+
+            _pendingRefreshVersion = 0;
+            return true;
+        }
     }
 
     private static DateTimeOffset CalculateExpiresAt(global::Supabase.Gotrue.Session session)
@@ -138,9 +286,16 @@ internal sealed class GotrueAuthStateBridge
         return state switch
         {
             OrangeDotAuthState.Authenticated => "authenticated",
+            OrangeDotAuthState.Refreshing => "refreshing",
             OrangeDotAuthState.SignedOut => "signed_out",
             OrangeDotAuthState.Anonymous => "anonymous",
+            OrangeDotAuthState.Faulted => "faulted",
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown auth state.")
         };
     }
+
+    internal readonly record struct SessionSnapshot(
+        string AccessToken,
+        string RefreshToken,
+        DateTimeOffset ExpiresAt);
 }

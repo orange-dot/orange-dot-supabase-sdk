@@ -5,10 +5,12 @@ using OrangeDot.Supabase.Auth;
 
 namespace OrangeDot.Supabase.Internal;
 
-internal sealed class RealtimeTokenBinding
+internal sealed class RealtimeTokenBinding : IDisposable
 {
     private readonly global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> _realtime;
     private readonly ILogger<RealtimeTokenBinding> _logger;
+    private readonly IDisposable _subscription;
+    private bool _disposed;
 
     internal RealtimeTokenBinding(
         IAuthStateObserver authStateObserver,
@@ -21,7 +23,18 @@ internal sealed class RealtimeTokenBinding
 
         _realtime = realtime;
         _logger = logger;
-        authStateObserver.Subscribe(Apply);
+        _subscription = authStateObserver.Subscribe(Apply);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _subscription.Dispose();
     }
 
     private void Apply(AuthState state)
@@ -32,7 +45,13 @@ internal sealed class RealtimeTokenBinding
                 _realtime.SetAuth(authenticated.AccessToken);
                 _logger.LogInformation("Applied authenticated token to realtime client.");
                 break;
+            case AuthState.Refreshing refreshing:
+                _realtime.SetAuth(refreshing.AccessToken);
+                _logger.LogInformation("Applied refreshing token projection to realtime client.");
+                break;
             case AuthState.SignedOut:
+            case AuthState.Anonymous:
+            case AuthState.Faulted:
             {
                 var channels = _realtime.Subscriptions.Values.ToArray();
 
@@ -42,12 +61,10 @@ internal sealed class RealtimeTokenBinding
                 }
 
                 _logger.LogInformation(
-                    "Unsubscribed {ChannelCount} realtime channels after sign-out.",
+                    "Cleared {ChannelCount} realtime channels after auth projection reset.",
                     channels.Length);
                 break;
             }
-            case AuthState.Anonymous:
-                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown auth state.");
         }

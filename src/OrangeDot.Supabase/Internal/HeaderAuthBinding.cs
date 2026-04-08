@@ -4,10 +4,12 @@ using OrangeDot.Supabase.Auth;
 
 namespace OrangeDot.Supabase.Internal;
 
-internal sealed class HeaderAuthBinding
+internal sealed class HeaderAuthBinding : IDisposable
 {
     private readonly DynamicAuthHeaders _dynamicAuthHeaders;
     private readonly ILogger<HeaderAuthBinding> _logger;
+    private readonly IDisposable _subscription;
+    private bool _disposed;
 
     internal HeaderAuthBinding(
         IAuthStateObserver authStateObserver,
@@ -20,19 +22,35 @@ internal sealed class HeaderAuthBinding
 
         _dynamicAuthHeaders = dynamicAuthHeaders;
         _logger = logger;
-        authStateObserver.Subscribe(Apply);
+        _subscription = authStateObserver.Subscribe(Apply);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _subscription.Dispose();
     }
 
     private void Apply(AuthState state)
     {
         switch (state)
         {
+            case AuthState.Refreshing { AccessToken: var accessToken }:
+                _dynamicAuthHeaders.SetAccessToken(accessToken);
+                _logger.LogInformation("Applied authenticated headers for child HTTP clients.");
+                break;
             case AuthState.Authenticated authenticated:
                 _dynamicAuthHeaders.SetAccessToken(authenticated.AccessToken);
                 _logger.LogInformation("Applied authenticated headers for child HTTP clients.");
                 break;
             case AuthState.Anonymous:
             case AuthState.SignedOut:
+            case AuthState.Faulted:
                 _dynamicAuthHeaders.ClearAccessToken();
                 _logger.LogInformation("Cleared authenticated headers for child HTTP clients.");
                 break;

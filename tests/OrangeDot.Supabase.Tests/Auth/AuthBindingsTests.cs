@@ -13,17 +13,18 @@ public sealed class AuthBindingsTests
     {
         var observer = new AuthStateObserver();
         observer.Publish(new AuthState.Authenticated(
+            1,
             "access-token",
             "refresh-token",
             DateTimeOffset.Parse("2026-04-07T10:00:00Z")));
 
         var dynamicHeaders = new DynamicAuthHeaders("anon-key");
-        _ = new HeaderAuthBinding(observer, dynamicHeaders, NullLogger<HeaderAuthBinding>.Instance);
+        using var binding = new HeaderAuthBinding(observer, dynamicHeaders, NullLogger<HeaderAuthBinding>.Instance);
 
         Assert.Equal("anon-key", dynamicHeaders.Build()["apikey"]);
         Assert.Equal("Bearer access-token", dynamicHeaders.Build()["Authorization"]);
 
-        observer.Publish(new AuthState.SignedOut());
+        observer.Publish(new AuthState.SignedOut(1));
 
         Assert.Equal("anon-key", dynamicHeaders.Build()["apikey"]);
         Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
@@ -34,6 +35,7 @@ public sealed class AuthBindingsTests
     {
         var observer = new AuthStateObserver();
         observer.Publish(new AuthState.Authenticated(
+            1,
             "access-token",
             "refresh-token",
             DateTimeOffset.Parse("2026-04-07T10:00:00Z")));
@@ -43,13 +45,14 @@ public sealed class AuthBindingsTests
             "wss://abc.supabase.co/realtime/v1",
             new global::Supabase.Realtime.ClientOptions()));
 
-        _ = new RealtimeTokenBinding(observer, realtime, NullLogger<RealtimeTokenBinding>.Instance);
+        using var binding = new RealtimeTokenBinding(observer, realtime, NullLogger<RealtimeTokenBinding>.Instance);
 
         Assert.Equal("access-token", ReadPrivateStringMember(realtime, "AccessToken"));
 
         var firstChannel = realtime.Channel("first");
         var secondChannel = realtime.Channel("second");
         observer.Publish(new AuthState.Authenticated(
+            2,
             "updated-token",
             "refresh-token",
             DateTimeOffset.Parse("2026-04-07T10:30:00Z")));
@@ -57,9 +60,35 @@ public sealed class AuthBindingsTests
         Assert.Equal("updated-token", firstChannel.Options.Parameters!["user_token"]);
         Assert.Equal("updated-token", secondChannel.Options.Parameters!["user_token"]);
 
-        observer.Publish(new AuthState.SignedOut());
+        observer.Publish(new AuthState.SignedOut(2));
 
         Assert.Empty(realtime.Subscriptions);
+    }
+
+    [Fact]
+    public void Header_binding_clears_headers_for_faulted_state_and_disposal_stops_updates()
+    {
+        var observer = new AuthStateObserver();
+        var dynamicHeaders = new DynamicAuthHeaders("anon-key");
+        using var binding = new HeaderAuthBinding(observer, dynamicHeaders, NullLogger<HeaderAuthBinding>.Instance);
+
+        observer.Publish(new AuthState.Authenticated(
+            1,
+            "access-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-07T10:00:00Z")));
+        observer.Publish(new AuthState.Faulted(1, 2, "refresh failed"));
+
+        Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
+
+        binding.Dispose();
+        observer.Publish(new AuthState.Authenticated(
+            2,
+            "new-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-07T10:10:00Z")));
+
+        Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
     }
 
     private static void SetSocket(global::Supabase.Realtime.Client client, global::Supabase.Realtime.RealtimeSocket socket)

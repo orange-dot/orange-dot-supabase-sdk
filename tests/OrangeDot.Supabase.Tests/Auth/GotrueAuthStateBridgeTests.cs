@@ -24,6 +24,7 @@ public sealed class GotrueAuthStateBridgeTests
         _ = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null);
 
         var authenticated = Assert.IsType<AuthState.Authenticated>(observer.Current);
+        Assert.Equal(1, authenticated.CanonicalVersion);
         Assert.Equal("access-token", authenticated.AccessToken);
         Assert.Equal("refresh-token", authenticated.RefreshToken);
         Assert.Equal(new DateTimeOffset(session.CreatedAt).AddSeconds(session.ExpiresIn), authenticated.ExpiresAt);
@@ -45,7 +46,9 @@ public sealed class GotrueAuthStateBridgeTests
     {
         var auth = CreateAuthClient();
         var observer = new AuthStateObserver();
-        _ = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null);
+        var received = new List<AuthState>();
+        using var subscription = observer.Subscribe(received.Add);
+        using var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null);
 
         var signedInSession = CreateSession("signed-in-token", "refresh-token", 1800);
         SetCurrentSession(auth, signedInSession);
@@ -53,6 +56,7 @@ public sealed class GotrueAuthStateBridgeTests
         auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
 
         var authenticated = Assert.IsType<AuthState.Authenticated>(observer.Current);
+        Assert.Equal(1, authenticated.CanonicalVersion);
         Assert.Equal("signed-in-token", authenticated.AccessToken);
 
         var refreshedSession = CreateSession("refreshed-token", "refresh-token-2", 3600);
@@ -60,11 +64,14 @@ public sealed class GotrueAuthStateBridgeTests
         auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
 
         authenticated = Assert.IsType<AuthState.Authenticated>(observer.Current);
+        Assert.Equal(2, authenticated.CanonicalVersion);
         Assert.Equal("refreshed-token", authenticated.AccessToken);
+        Assert.Contains(received, state => state is AuthState.Refreshing refreshing && refreshing.PendingRefreshVersion == 2);
 
         auth.NotifyAuthStateChange(GotrueAuthState.SignedOut);
 
-        Assert.IsType<AuthState.SignedOut>(observer.Current);
+        var signedOut = Assert.IsType<AuthState.SignedOut>(observer.Current);
+        Assert.Equal(2, signedOut.CanonicalVersion);
     }
 
     [Fact]
@@ -119,6 +126,55 @@ public sealed class GotrueAuthStateBridgeTests
         Assert.Contains(collector.Measurements, measurement => measurement.Name == "supabase.auth.state_changes.total");
     }
 
+    [Fact]
+    public void Bridge_maps_user_updated_to_new_authenticated_version()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        using var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null);
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
+        SetCurrentSession(auth, CreateSession("updated-token", "refresh-token", 1800));
+        auth.NotifyAuthStateChange(GotrueAuthState.UserUpdated);
+
+        var authenticated = Assert.IsType<AuthState.Authenticated>(observer.Current);
+        Assert.Equal(2, authenticated.CanonicalVersion);
+        Assert.Equal("updated-token", authenticated.AccessToken);
+    }
+
+    [Fact]
+    public void Bridge_publishes_faulted_state_when_refresh_event_has_no_valid_session()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        using var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null);
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
+        SetCurrentSession(auth, null);
+        auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
+
+        var faulted = Assert.IsType<AuthState.Faulted>(observer.Current);
+        Assert.Equal(1, faulted.CanonicalVersion);
+        Assert.Equal(0, faulted.PendingRefreshVersion);
+    }
+
+    [Fact]
+    public void Bridge_dispose_removes_registered_listener()
+    {
+        var auth = CreateAuthClient();
+        var initialCount = GetAuthListenerCount(auth);
+        var observer = new AuthStateObserver();
+        var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null);
+
+        Assert.Equal(initialCount + 1, GetAuthListenerCount(auth));
+
+        bridge.Dispose();
+
+        Assert.Equal(initialCount, GetAuthListenerCount(auth));
+    }
+
     private static global::Supabase.Gotrue.Client CreateAuthClient()
     {
         return new global::Supabase.Gotrue.Client(new global::Supabase.Gotrue.ClientOptions
@@ -150,6 +206,16 @@ public sealed class GotrueAuthStateBridgeTests
 
         Assert.NotNull(property);
         property!.SetValue(auth, session);
+    }
+
+    private static int GetAuthListenerCount(global::Supabase.Gotrue.Client auth)
+    {
+        var field = typeof(global::Supabase.Gotrue.Client).GetField(
+            "_authEventHandlers",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        return Assert.IsAssignableFrom<System.Collections.ICollection>(field!.GetValue(auth)).Count;
     }
 
     private sealed class TestMeterFactory : IMeterFactory, IDisposable

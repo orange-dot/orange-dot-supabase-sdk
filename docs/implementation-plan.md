@@ -57,7 +57,7 @@ Delivery target: polished v0.1 design package and prototype baseline
 ## Day 2 — Auth state observable + error taxonomy
 
 **Morning: auth state types + observable**
-- `src/OrangeDot.Supabase/Auth/AuthState.cs` — discriminated union: `AuthState.Anonymous`, `AuthState.Authenticated(AccessToken, RefreshToken, ExpiresAt)`, `AuthState.SignedOut`
+- `src/OrangeDot.Supabase/Auth/AuthState.cs` — discriminated union: `AuthState.Anonymous`, `AuthState.Authenticated(version, AccessToken, RefreshToken, ExpiresAt)`, `AuthState.Refreshing(version, pendingRefreshVersion, ...)`, `AuthState.SignedOut(version)`, `AuthState.Faulted(version, pendingRefreshVersion, reason)`
 - `src/OrangeDot.Supabase/Auth/IAuthStateObserver.cs` — interface exposing `AuthState Current` plus `IDisposable Subscribe(Action<AuthState> listener)`
 - `src/OrangeDot.Supabase/Auth/AuthStateObserver.cs` — homegrown implementation (no `System.Reactive` dependency)
   - Thread-safe subscribe/unsubscribe
@@ -122,7 +122,7 @@ Delivery target: polished v0.1 design package and prototype baseline
 ## Day 4 — Child-client bindings + observability wiring
 
 **Morning: child-client auth subscribers (Contrast 2)**
-- `src/OrangeDot.Supabase/Internal/RealtimeTokenBinding.cs` — `IHostedService`, subscribes to `IAuthStateObserver`, pushes token into `RealtimeClient.SetAccessToken(...)` on `Authenticated` events
+- `src/OrangeDot.Supabase/Internal/RealtimeTokenBinding.cs` — owned subscriber that reacts to `IAuthStateObserver` updates and pushes token/channel resets into the realtime client
 - `src/OrangeDot.Supabase/Internal/PostgrestHeaderBinding.cs` — subscribes, updates Postgrest client's `GetHeaders` delegate
 - `src/OrangeDot.Supabase/Internal/StorageHeaderBinding.cs` — same pattern for Storage
 - `src/OrangeDot.Supabase/Internal/FunctionsHeaderBinding.cs` — same pattern for Functions

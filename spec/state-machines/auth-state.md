@@ -6,11 +6,11 @@ The orchestration layer treats auth as canonical state owned in one place and pr
 
 | State | Meaning |
 |-------|---------|
-| `Anonymous` | No authenticated session |
-| `Authenticated` | Current access token and refresh token are valid |
-| `Refreshing` | Refresh in progress for the current canonical session version |
-| `SignedOut` | Session explicitly cleared |
-| `Faulted` | Auth transition failed and requires caller-visible handling |
+| `Anonymous(version=0)` | No authenticated session |
+| `Authenticated(version, token)` | Current access token and refresh token are valid for the canonical session version |
+| `Refreshing(version, pending_refresh_version)` | Refresh is being projected for the current canonical session version |
+| `SignedOut(version)` | Session explicitly cleared while preserving the last canonical version |
+| `Faulted(version, pending_refresh_version)` | Auth transition failed and requires caller-visible handling |
 
 ## Transition Graph
 
@@ -34,7 +34,7 @@ SignedOut ---- sign-in success ----------------> Authenticated
 
 ## Refinement Note
 
-The TLA+ model keeps `pending_refresh_version` explicit and treats binding projection as asynchronous steps. That refinement is used to model refresh-vs-sign-out races and eventual convergence of live bindings.
+The TLA+ model keeps `pending_refresh_version` explicit and treats binding projection as asynchronous steps. The current implementation also keeps version and pending-refresh metadata in the bridge layer. Because upstream Gotrue emits refresh completion but not a dedicated refresh-start event, the orchestration layer synthesizes `Refreshing` immediately before publishing the refreshed `Authenticated` state so the public model still exposes the full transition vocabulary.
 
 ## Canonical Invariant References
 

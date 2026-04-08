@@ -78,7 +78,6 @@ public sealed class SupabaseHostedStartupTests
     [Fact]
     public async Task Hosted_startup_cancellation_cancels_ready_and_keeps_property_gate_closed()
     {
-        using var services = new ServiceCollection().BuildServiceProvider();
         var shell = new SupabaseClientShell(NullLogger<SupabaseClientShell>.Instance);
         var startupService = new SupabaseStartupService(
             Options.Create(new SupabaseOptions
@@ -89,8 +88,7 @@ public sealed class SupabaseHostedStartupTests
             shell,
             NullLogger<SupabaseStartupService>.Instance,
             NullLoggerFactory.Instance,
-            new OrangeDot.Supabase.Auth.AuthStateObserver(),
-            services);
+            new OrangeDot.Supabase.Auth.AuthStateObserver());
 
         using var cancellationTokenSource = new CancellationTokenSource();
         cancellationTokenSource.Cancel();
@@ -107,6 +105,24 @@ public sealed class SupabaseHostedStartupTests
         Assert.Throws<InvalidOperationException>(() => _ = shell.Url);
         Assert.Throws<InvalidOperationException>(() => _ = shell.AnonKey);
         Assert.Throws<InvalidOperationException>(() => _ = shell.Urls);
+    }
+
+    [Fact]
+    public async Task Hosted_stop_disposes_initialized_client()
+    {
+        using var host = CreateHost(options =>
+        {
+            options.Url = "https://abc.supabase.co/";
+            options.AnonKey = "anon-key";
+        });
+
+        var client = host.Services.GetRequiredService<ISupabaseClient>();
+
+        await host.StartAsync();
+        await client.Ready;
+        await host.StopAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Auth);
     }
 
     private static IHost CreateHost(Action<SupabaseOptions> configure)

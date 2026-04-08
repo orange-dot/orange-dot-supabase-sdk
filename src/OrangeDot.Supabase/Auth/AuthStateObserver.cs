@@ -27,19 +27,16 @@ public sealed class AuthStateObserver : IAuthStateObserver
     {
         ArgumentNullException.ThrowIfNull(listener);
 
-        AuthState current;
-        long subscriptionId;
-
-        lock (_gate)
-        {
-            subscriptionId = _nextSubscriptionId++;
-            _listeners.Add(subscriptionId, listener);
-            current = _current;
-        }
+        long subscriptionId = 0;
 
         try
         {
-            listener(current);
+            lock (_gate)
+            {
+                subscriptionId = _nextSubscriptionId++;
+                _listeners.Add(subscriptionId, listener);
+                listener(_current);
+            }
         }
         catch
         {

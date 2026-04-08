@@ -18,7 +18,8 @@ internal sealed class SupabaseStartupService : IHostedService
     private readonly ILogger<SupabaseStartupService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly AuthStateObserver _authStateObserver;
-    private readonly IServiceProvider _services;
+    private readonly IMeterFactory? _meterFactory;
+    private SupabaseClient? _client;
 
     public SupabaseStartupService(
         IOptions<SupabaseOptions> options,
@@ -26,14 +27,14 @@ internal sealed class SupabaseStartupService : IHostedService
         ILogger<SupabaseStartupService> logger,
         ILoggerFactory loggerFactory,
         AuthStateObserver authStateObserver,
-        IServiceProvider services)
+        IMeterFactory? meterFactory = null)
     {
         _options = options;
         _shell = shell;
         _logger = logger;
         _loggerFactory = loggerFactory;
         _authStateObserver = authStateObserver;
-        _services = services;
+        _meterFactory = meterFactory;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -41,19 +42,18 @@ internal sealed class SupabaseStartupService : IHostedService
         using var activity = SupabaseTelemetry.Source.StartActivity("supabase.startup");
         activity?.SetTag("supabase.path", "hosted");
 
-        var meterFactory = _services.GetService(typeof(IMeterFactory)) as IMeterFactory;
-        var metrics = SupabaseMetrics.TryCreate(meterFactory);
+        var metrics = SupabaseMetrics.TryCreate(_meterFactory);
 
         _logger.LogInformation("Starting Supabase hosted initialization.");
 
         try
         {
-            var runtimeContext = new SupabaseRuntimeContext(_authStateObserver, _loggerFactory, meterFactory);
+            var runtimeContext = new SupabaseRuntimeContext(_authStateObserver, _loggerFactory, _meterFactory);
             var configured = SupabaseClient.Configure(_options.Value, runtimeContext);
             var hydrated = await configured.LoadPersistedSessionAsync().ConfigureAwait(false);
-            var client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            _client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
-            _shell.SetInitializedClient(client);
+            _shell.SetInitializedClient(_client);
             metrics?.RecordStartup("success");
             activity?.SetStatus(ActivityStatusCode.Ok);
             _logger.LogInformation("Supabase hosted initialization completed.");
@@ -78,6 +78,8 @@ internal sealed class SupabaseStartupService : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        _client?.Dispose();
+        _client = null;
         return Task.CompletedTask;
     }
 }
