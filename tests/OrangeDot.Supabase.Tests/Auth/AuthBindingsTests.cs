@@ -91,6 +91,60 @@ public sealed class AuthBindingsTests
         Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
     }
 
+    [Fact]
+    public void Header_binding_double_dispose_is_idempotent()
+    {
+        var observer = new AuthStateObserver();
+        var dynamicHeaders = new DynamicAuthHeaders("anon-key");
+        var binding = new HeaderAuthBinding(observer, dynamicHeaders, NullLogger<HeaderAuthBinding>.Instance);
+
+        binding.Dispose();
+        binding.Dispose();
+    }
+
+    [Fact]
+    public void Realtime_binding_double_dispose_is_idempotent()
+    {
+        var observer = new AuthStateObserver();
+        var realtime = new global::Supabase.Realtime.Client("wss://abc.supabase.co/realtime/v1");
+        SetSocket(realtime, new global::Supabase.Realtime.RealtimeSocket(
+            "wss://abc.supabase.co/realtime/v1",
+            new global::Supabase.Realtime.ClientOptions()));
+
+        var binding = new RealtimeTokenBinding(observer, realtime, NullLogger<RealtimeTokenBinding>.Instance);
+
+        binding.Dispose();
+        binding.Dispose();
+    }
+
+    [Fact]
+    public void Header_binding_post_dispose_publish_is_noop()
+    {
+        var observer = new AuthStateObserver();
+        var dynamicHeaders = new DynamicAuthHeaders("anon-key");
+
+        observer.Publish(new AuthState.Authenticated(
+            1,
+            "access-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-07T10:00:00Z")));
+
+        var binding = new HeaderAuthBinding(observer, dynamicHeaders, NullLogger<HeaderAuthBinding>.Instance);
+        Assert.Equal("Bearer access-token", dynamicHeaders.Build()["Authorization"]);
+
+        binding.Dispose();
+        dynamicHeaders.ClearAccessToken();
+        Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
+
+        observer.Publish(new AuthState.Authenticated(
+            2,
+            "post-dispose-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-07T10:10:00Z")));
+
+        Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
+    }
+
     private static void SetSocket(global::Supabase.Realtime.Client client, global::Supabase.Realtime.RealtimeSocket socket)
     {
         var field = typeof(global::Supabase.Realtime.Client).GetField(

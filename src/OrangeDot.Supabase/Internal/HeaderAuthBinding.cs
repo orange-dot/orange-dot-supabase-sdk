@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using OrangeDot.Supabase.Auth;
 
@@ -9,7 +10,7 @@ internal sealed class HeaderAuthBinding : IDisposable
     private readonly DynamicAuthHeaders _dynamicAuthHeaders;
     private readonly ILogger<HeaderAuthBinding> _logger;
     private readonly IDisposable _subscription;
-    private bool _disposed;
+    private int _disposed;
 
     internal HeaderAuthBinding(
         IAuthStateObserver authStateObserver,
@@ -27,17 +28,21 @@ internal sealed class HeaderAuthBinding : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
         _subscription.Dispose();
     }
 
     private void Apply(AuthState state)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         switch (state)
         {
             case AuthState.Refreshing { AccessToken: var accessToken }:

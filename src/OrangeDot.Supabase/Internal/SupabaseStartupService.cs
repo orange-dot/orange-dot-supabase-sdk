@@ -19,7 +19,12 @@ internal sealed class SupabaseStartupService : IHostedService
     private readonly ILoggerFactory _loggerFactory;
     private readonly AuthStateObserver _authStateObserver;
     private readonly IMeterFactory? _meterFactory;
+    private readonly object _lifecycleGate = new();
     private SupabaseClient? _client;
+    private bool _stopping;
+
+    // Test-only seam for deterministic StartAsync/StopAsync overlap coverage.
+    internal Func<Task>? BeforePublishTestHookAsync { private get; set; }
 
     public SupabaseStartupService(
         IOptions<SupabaseOptions> options,
@@ -51,9 +56,26 @@ internal sealed class SupabaseStartupService : IHostedService
             var runtimeContext = new SupabaseRuntimeContext(_authStateObserver, _loggerFactory, _meterFactory);
             var configured = SupabaseClient.Configure(_options.Value, runtimeContext);
             var hydrated = await configured.LoadPersistedSessionAsync().ConfigureAwait(false);
-            _client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            var client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            var beforePublishTestHookAsync = BeforePublishTestHookAsync;
 
-            _shell.SetInitializedClient(_client);
+            if (beforePublishTestHookAsync is not null)
+            {
+                await beforePublishTestHookAsync().ConfigureAwait(false);
+            }
+
+            lock (_lifecycleGate)
+            {
+                if (_stopping)
+                {
+                    client.Dispose();
+                    return;
+                }
+
+                _client = client;
+                _shell.SetInitializedClient(client);
+            }
+
             metrics?.RecordStartup("success");
             activity?.SetStatus(ActivityStatusCode.Ok);
             _logger.LogInformation("Supabase hosted initialization completed.");
@@ -78,8 +100,13 @@ internal sealed class SupabaseStartupService : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _client?.Dispose();
-        _client = null;
+        lock (_lifecycleGate)
+        {
+            _stopping = true;
+            _client?.Dispose();
+            _client = null;
+        }
+
         return Task.CompletedTask;
     }
 }

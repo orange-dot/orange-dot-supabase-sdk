@@ -66,6 +66,32 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.DoesNotContain("Authorization", cleared.Keys);
     }
 
+    [Fact]
+    public void Dynamic_auth_headers_snapshot_transitions_are_consistent()
+    {
+        var dynamicHeaders = new DynamicAuthHeaders("anon-key");
+
+        var anonymous = dynamicHeaders.Build();
+        Assert.Single(anonymous);
+        Assert.Equal("anon-key", anonymous["apikey"]);
+
+        dynamicHeaders.SetAccessToken("token-a");
+        var firstAuth = dynamicHeaders.Build();
+        Assert.Equal(2, firstAuth.Count);
+        Assert.Equal("Bearer token-a", firstAuth["Authorization"]);
+
+        dynamicHeaders.SetAccessToken("token-b");
+        var secondAuth = dynamicHeaders.Build();
+        Assert.Equal("Bearer token-b", secondAuth["Authorization"]);
+        Assert.Equal("Bearer token-a", firstAuth["Authorization"]);
+
+        dynamicHeaders.ClearAccessToken();
+        var afterClear = dynamicHeaders.Build();
+        Assert.Single(afterClear);
+        Assert.DoesNotContain("Authorization", afterClear.Keys);
+        Assert.Equal("Bearer token-b", secondAuth["Authorization"]);
+    }
+
     private static string ReadPrivateStringField(object instance, string fieldName)
     {
         var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);

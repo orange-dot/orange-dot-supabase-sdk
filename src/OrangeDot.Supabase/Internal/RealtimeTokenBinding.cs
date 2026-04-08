@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using OrangeDot.Supabase.Auth;
 
@@ -10,7 +11,7 @@ internal sealed class RealtimeTokenBinding : IDisposable
     private readonly global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> _realtime;
     private readonly ILogger<RealtimeTokenBinding> _logger;
     private readonly IDisposable _subscription;
-    private bool _disposed;
+    private int _disposed;
 
     internal RealtimeTokenBinding(
         IAuthStateObserver authStateObserver,
@@ -28,17 +29,21 @@ internal sealed class RealtimeTokenBinding : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
         _subscription.Dispose();
     }
 
     private void Apply(AuthState state)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         switch (state)
         {
             case AuthState.Authenticated authenticated:
