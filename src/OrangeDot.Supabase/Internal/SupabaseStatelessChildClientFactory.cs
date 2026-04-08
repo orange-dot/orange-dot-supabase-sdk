@@ -44,7 +44,7 @@ internal sealed class SupabaseStatelessChildClientFactory
 
         return new global::Supabase.Storage.Client(
             snapshot.Urls.StorageUrl,
-            headers: SupabaseChildClientFactory.CreateStaticHeaders(snapshot.AnonKey));
+            headers: SupabaseChildClientFactory.CreateStorageHeaders(snapshot.AnonKey));
     }
 
     internal global::Supabase.Functions.Client CreateFunctions(LifecycleSnapshot snapshot)

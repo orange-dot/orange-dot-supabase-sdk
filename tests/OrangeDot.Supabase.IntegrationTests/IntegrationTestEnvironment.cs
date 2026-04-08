@@ -1,4 +1,6 @@
 using System;
+using System.Net.Http.Json;
+using System.Text.Json;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -7,6 +9,9 @@ namespace OrangeDot.Supabase.IntegrationTests;
 internal static class IntegrationTestEnvironment
 {
     internal const string RunIntegrationVariableName = "ORANGEDOT_SUPABASE_RUN_INTEGRATION";
+    internal const string IntegrationBucketName = "integration-public";
+    internal const string IntegrationSmokeFunctionName = "orangedot-integration-smoke";
+
     private const string SupabaseUrlVariableName = "SUPABASE_URL";
     private const string SupabaseAnonKeyVariableName = "SUPABASE_ANON_KEY";
     private const string DefaultSupabaseUrl = "http://127.0.0.1:54321";
@@ -36,6 +41,46 @@ internal static class IntegrationTestEnvironment
         await EnsureReachableAsync(settings);
     }
 
+    internal static async Task EnsureOptInAndStorageReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (!settings.IsEnabled)
+        {
+            return;
+        }
+
+        await EnsureReachableAsync(settings);
+        await EnsureStorageReachableAsync(settings);
+    }
+
+    internal static async Task EnsureOptInAndFunctionsReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (!settings.IsEnabled)
+        {
+            return;
+        }
+
+        await EnsureReachableAsync(settings);
+        await EnsureFunctionsReachableAsync(settings);
+    }
+
+    internal static async Task EnsureOptInAndCapabilitiesReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (!settings.IsEnabled)
+        {
+            return;
+        }
+
+        await EnsureReachableAsync(settings);
+        await EnsureStorageReachableAsync(settings);
+        await EnsureFunctionsReachableAsync(settings);
+    }
+
     internal static async Task EnsureReachableAsync(IntegrationTestSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -61,6 +106,79 @@ internal static class IntegrationTestEnvironment
 
         throw new InvalidOperationException(
             $"Local Supabase integration stack is not ready. Expected GET {request.RequestUri} to succeed after `supabase start`. Response: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {responseBody}");
+    }
+
+    internal static async Task EnsureStorageReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        using var httpClient = CreateHttpClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{settings.Url}/storage/v1/object/list/{IntegrationBucketName}");
+
+        request.Headers.Add("apikey", settings.AnonKey);
+        request.Headers.Add("Authorization", $"Bearer {settings.AnonKey}");
+        request.Content = JsonContent.Create(new
+        {
+            prefix = string.Empty,
+            limit = 1,
+            offset = 0,
+            search = string.Empty,
+            sortBy = new
+            {
+                column = "name",
+                order = "asc"
+            }
+        });
+
+        using var response = await httpClient.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        throw new InvalidOperationException(
+            $"Local Supabase storage stack is not ready. Expected POST {request.RequestUri} to succeed for bucket '{IntegrationBucketName}'. Response: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {responseBody}");
+    }
+
+    internal static async Task EnsureFunctionsReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        using var httpClient = CreateHttpClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{settings.Url}/functions/v1/{IntegrationSmokeFunctionName}");
+
+        request.Headers.Add("apikey", settings.AnonKey);
+        request.Content = JsonContent.Create(new
+        {
+            source = "integration-readiness"
+        });
+
+        using var response = await httpClient.SendAsync(request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Local Supabase functions stack is not ready. Expected POST {request.RequestUri} to succeed. Response: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {responseBody}");
+        }
+
+        using var json = JsonDocument.Parse(responseBody);
+        var root = json.RootElement;
+
+        if (!root.TryGetProperty("ok", out var okProperty) || !okProperty.GetBoolean() ||
+            !root.TryGetProperty("function", out var functionProperty) ||
+            !string.Equals(functionProperty.GetString(), IntegrationSmokeFunctionName, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Local Supabase functions stack returned an unexpected smoke response: {responseBody}");
+        }
     }
 
     internal static string NewOwnerTag(string prefix)
@@ -93,6 +211,14 @@ internal static class IntegrationTestEnvironment
         }
 
         return bool.TryParse(value, out var enabled) && enabled;
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        return new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(5)
+        };
     }
 }
 

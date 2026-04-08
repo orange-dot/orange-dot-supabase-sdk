@@ -47,7 +47,7 @@ internal sealed class SupabaseChildClientFactory
             snapshot.Urls.StorageUrl,
             headers: new Dictionary<string, string>(staticHeaders))
         {
-            GetHeaders = dynamicAuthHeaders.Build
+            GetHeaders = () => CreateStorageHeaders(snapshot.AnonKey, dynamicAuthHeaders.Build())
         };
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -67,5 +67,18 @@ internal sealed class SupabaseChildClientFactory
         {
             ["apikey"] = apiKey
         };
+    }
+
+    internal static Dictionary<string, string> CreateStorageHeaders(
+        string apiKey,
+        Dictionary<string, string>? baseHeaders = null)
+    {
+        var headers = baseHeaders is null
+            ? CreateStaticHeaders(apiKey)
+            : new Dictionary<string, string>(baseHeaders);
+
+        headers.TryAdd("Authorization", $"Bearer {apiKey}");
+
+        return headers;
     }
 }

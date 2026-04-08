@@ -28,7 +28,10 @@ enabled = false
 enabled = false
 
 [storage]
-enabled = false
+enabled = true
+
+[storage.buckets.integration-public]
+public = true
 
 [auth]
 enabled = true
@@ -59,7 +62,12 @@ template = "Your code is {{ .Code }}"
 max_frequency = "5s"
 
 [edge_runtime]
-enabled = false
+enabled = true
+
+[functions.orangedot-integration-smoke]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/orangedot-integration-smoke/index.ts"
 
 [analytics]
 enabled = false

@@ -31,7 +31,7 @@ public sealed class SupabaseChildClientFactoryTests
 
         Assert.Equal(urls.StorageUrl, ReadPublicOrNonPublicStringProperty(children.Storage, "Url"));
         Assert.Equal("anon-key", children.Storage.Headers["apikey"]);
-        Assert.DoesNotContain("Authorization", children.Storage.Headers.Keys);
+        Assert.Equal("Bearer anon-key", children.Storage.Headers["Authorization"]);
 
         Assert.Equal(urls.FunctionsUrl, ReadPrivateStringField(children.Functions, "_baseUrl"));
         Assert.DoesNotContain("Authorization", children.Functions.GetHeaders!().Keys);
@@ -43,6 +43,14 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.Equal("Bearer session-token", children.Realtime.GetHeaders!()["Authorization"]);
         Assert.Equal("Bearer session-token", children.Storage.Headers["Authorization"]);
         Assert.Equal("Bearer session-token", children.Functions.GetHeaders!()["Authorization"]);
+
+        children.DynamicAuthHeaders.ClearAccessToken();
+
+        Assert.DoesNotContain("Authorization", children.Auth.GetHeaders!().Keys);
+        Assert.DoesNotContain("Authorization", children.Postgrest.GetHeaders!().Keys);
+        Assert.DoesNotContain("Authorization", children.Realtime.GetHeaders!().Keys);
+        Assert.Equal("Bearer anon-key", children.Storage.Headers["Authorization"]);
+        Assert.DoesNotContain("Authorization", children.Functions.GetHeaders!().Keys);
     }
 
     [Fact]

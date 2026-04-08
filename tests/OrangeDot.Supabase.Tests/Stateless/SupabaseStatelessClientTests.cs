@@ -163,7 +163,7 @@ public sealed class SupabaseStatelessClientTests
 
         Assert.Equal(client.Urls.StorageUrl, ReadPublicOrNonPublicStringProperty(storage, "Url"));
         Assert.Equal("anon-key", storage.Headers["apikey"]);
-        Assert.DoesNotContain("Authorization", storage.Headers.Keys);
+        Assert.Equal("Bearer anon-key", storage.Headers["Authorization"]);
 
         Assert.Equal(client.Urls.FunctionsUrl, ReadPrivateStringField(functions, "_baseUrl"));
         Assert.Equal("anon-key", functions.GetHeaders!()["apikey"]);
