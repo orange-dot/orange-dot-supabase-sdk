@@ -13,50 +13,74 @@ public sealed class HydratedClient : IDisposable
     private readonly SupabaseRuntimeContext _runtimeContext;
     private bool _disposed;
 
+    // Test-only seam for deterministic cancellation cleanup coverage.
+    internal Func<SupabaseChildClients, GotrueAuthStateBridge, HeaderAuthBinding, RealtimeTokenBinding, Task>? BeforeFinalizeTestHookAsync { private get; set; }
+
     internal HydratedClient(LifecycleSnapshot snapshot, SupabaseRuntimeContext runtimeContext)
     {
         _snapshot = snapshot;
         _runtimeContext = runtimeContext;
     }
 
-    public Task<SupabaseClient> InitializeAsync(CancellationToken cancellationToken = default)
+    public async Task<SupabaseClient> InitializeAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromCanceled<SupabaseClient>(cancellationToken);
+            return await Task.FromCanceled<SupabaseClient>(cancellationToken);
         }
 
         var childFactory = new SupabaseChildClientFactory();
-        cancellationToken.ThrowIfCancellationRequested();
-        var children = childFactory.Create(_snapshot, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var metrics = SupabaseMetrics.TryCreate(_runtimeContext.MeterFactory);
-        var loggerFactory = _runtimeContext.LoggerFactory;
-        var authBridge = new GotrueAuthStateBridge(
-            children.Auth,
-            _runtimeContext.AuthStateObserver,
-            loggerFactory.CreateLogger<GotrueAuthStateBridge>(),
-            metrics);
-        cancellationToken.ThrowIfCancellationRequested();
-        var headerBinding = new HeaderAuthBinding(
-            _runtimeContext.AuthStateObserver,
-            children.DynamicAuthHeaders,
-            loggerFactory.CreateLogger<HeaderAuthBinding>());
-        cancellationToken.ThrowIfCancellationRequested();
-        var realtimeBinding = new RealtimeTokenBinding(
-            _runtimeContext.AuthStateObserver,
-            children.Realtime,
-            loggerFactory.CreateLogger<RealtimeTokenBinding>());
-        cancellationToken.ThrowIfCancellationRequested();
+        SupabaseChildClients? children = null;
+        GotrueAuthStateBridge? authBridge = null;
+        HeaderAuthBinding? headerBinding = null;
+        RealtimeTokenBinding? realtimeBinding = null;
 
-        return Task.FromResult(new SupabaseClient(
-            _snapshot,
-            children,
-            authBridge,
-            headerBinding,
-            realtimeBinding));
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            children = childFactory.Create(_snapshot, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var metrics = SupabaseMetrics.TryCreate(_runtimeContext.MeterFactory);
+            var loggerFactory = _runtimeContext.LoggerFactory;
+            authBridge = new GotrueAuthStateBridge(
+                children.Auth,
+                _runtimeContext.AuthStateObserver,
+                loggerFactory.CreateLogger<GotrueAuthStateBridge>(),
+                metrics);
+            cancellationToken.ThrowIfCancellationRequested();
+            headerBinding = new HeaderAuthBinding(
+                _runtimeContext.AuthStateObserver,
+                children.DynamicAuthHeaders,
+                loggerFactory.CreateLogger<HeaderAuthBinding>());
+            cancellationToken.ThrowIfCancellationRequested();
+            realtimeBinding = new RealtimeTokenBinding(
+                _runtimeContext.AuthStateObserver,
+                children.Realtime,
+                loggerFactory.CreateLogger<RealtimeTokenBinding>());
+
+            var beforeFinalizeTestHookAsync = BeforeFinalizeTestHookAsync;
+
+            if (beforeFinalizeTestHookAsync is not null)
+            {
+                await beforeFinalizeTestHookAsync(children, authBridge, headerBinding, realtimeBinding).ConfigureAwait(false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return new SupabaseClient(
+                _snapshot,
+                children,
+                authBridge,
+                headerBinding,
+                realtimeBinding);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            CleanupPartialInitialization(children, authBridge, headerBinding, realtimeBinding);
+            throw;
+        }
     }
 
     public void Dispose()
@@ -67,5 +91,35 @@ public sealed class HydratedClient : IDisposable
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private static void CleanupPartialInitialization(
+        SupabaseChildClients? children,
+        GotrueAuthStateBridge? authBridge,
+        HeaderAuthBinding? headerBinding,
+        RealtimeTokenBinding? realtimeBinding)
+    {
+        TryCleanup(() => realtimeBinding?.Dispose());
+        TryCleanup(() => headerBinding?.Dispose());
+        TryCleanup(() => authBridge?.Dispose());
+        TryCleanup(() => children?.Auth.Shutdown());
+        TryCleanup(() => children?.Realtime.Disconnect());
+    }
+
+    private static void TryCleanup(Action? cleanup)
+    {
+        if (cleanup is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cleanup();
+        }
+        catch
+        {
+            // Preserve the original cancellation path if teardown is only partial.
+        }
     }
 }

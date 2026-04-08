@@ -1,7 +1,12 @@
 using System;
+using System.Collections;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using OrangeDot.Supabase.Auth;
 using OrangeDot.Supabase.Errors;
+using OrangeDot.Supabase.Internal;
 using Xunit;
 
 namespace OrangeDot.Supabase.Tests.Lifecycle;
@@ -154,6 +159,55 @@ public sealed class LifecycleTransitionTests
     }
 
     [Fact]
+    public async Task Initialize_async_cancellation_after_partial_wiring_cleans_up_partial_runtime_graph()
+    {
+        var observer = new AuthStateObserver();
+        var runtimeContext = new SupabaseRuntimeContext(observer, NullLoggerFactory.Instance, MeterFactory: null);
+        var configured = SupabaseClient.Configure(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "anon-key"
+        }, runtimeContext);
+
+        var hydrated = await configured.LoadPersistedSessionAsync();
+        var reachedPreFinalizeWindow = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumeInitialization = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SupabaseChildClients? capturedChildren = null;
+        int authListenerCountDuringHook = 0;
+
+        hydrated.BeforeFinalizeTestHookAsync = (children, _, _, _) =>
+        {
+            capturedChildren = children;
+            authListenerCountDuringHook = ReadAuthListenerCount(children.Auth);
+            reachedPreFinalizeWindow.TrySetResult();
+            return resumeInitialization.Task;
+        };
+
+        using var cts = new CancellationTokenSource();
+        var initializeTask = hydrated.InitializeAsync(cts.Token);
+
+        await reachedPreFinalizeWindow.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotNull(capturedChildren);
+
+        cts.Cancel();
+        resumeInitialization.TrySetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await initializeTask);
+
+        Assert.NotNull(capturedChildren);
+        Assert.Equal(authListenerCountDuringHook - 1, ReadAuthListenerCount(capturedChildren!.Auth));
+
+        observer.Publish(new AuthState.Authenticated(
+            1,
+            "post-cancel-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-08T10:00:00Z")));
+
+        Assert.DoesNotContain("Authorization", capturedChildren.DynamicAuthHeaders.Build().Keys);
+        Assert.Null(ReadPrivateStringMember(capturedChildren.Realtime, "AccessToken"));
+    }
+
+    [Fact]
     public async Task Configure_creates_independent_lifecycle_pipelines()
     {
         var firstConfigured = SupabaseClient.Configure(new SupabaseOptions
@@ -232,5 +286,33 @@ public sealed class LifecycleTransitionTests
 
     private sealed class TestModel : global::Supabase.Postgrest.Models.BaseModel
     {
+    }
+
+    private static int ReadAuthListenerCount(global::Supabase.Gotrue.Client auth)
+    {
+        var field = typeof(global::Supabase.Gotrue.Client).GetField(
+            "_authEventHandlers",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        var handlers = Assert.IsAssignableFrom<ICollection>(field!.GetValue(auth));
+        return handlers.Count;
+    }
+
+    private static string? ReadPrivateStringMember(object instance, string memberName)
+    {
+        var property = instance.GetType().GetProperty(
+            memberName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+        if (property is not null)
+        {
+            return property.GetValue(instance) as string;
+        }
+
+        var field = instance.GetType().GetField(memberName, BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        return field!.GetValue(instance) as string;
     }
 }
