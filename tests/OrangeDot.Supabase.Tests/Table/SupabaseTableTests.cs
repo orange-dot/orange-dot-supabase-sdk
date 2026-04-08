@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using OrangeDot.Supabase.Internal;
+using Supabase.Core.Interfaces;
 using Supabase.Realtime.Broadcast;
 using Supabase.Realtime.Channel;
 using Supabase.Realtime.Exceptions;
@@ -21,18 +22,44 @@ namespace OrangeDot.Supabase.Tests.Table;
 public sealed class SupabaseTableTests
 {
     [Fact]
+    public void GetHeaders_getter_reads_through_and_setter_is_blocked_across_supported_references()
+    {
+        var inner = new FakePostgrestTable();
+        Func<Dictionary<string, string>> initialHeaders = StaticHeaders;
+        Func<Dictionary<string, string>> alternateHeaders = AlternateHeaders;
+        inner.GetHeaders = initialHeaders;
+
+        var wrapper = new SupabaseTable<TableModel>(inner, new FakeRealtimeClient());
+        var tableInterface = (ISupabaseTable<TableModel>)wrapper;
+        var postgrestInterface = (global::Supabase.Postgrest.Interfaces.IPostgrestTable<TableModel>)wrapper;
+        var gettableHeaders = (IGettableHeaders)wrapper;
+
+        Assert.Same(initialHeaders, wrapper.GetHeaders);
+        Assert.Same(initialHeaders, tableInterface.GetHeaders);
+        Assert.Same(initialHeaders, postgrestInterface.GetHeaders);
+        Assert.Same(initialHeaders, gettableHeaders.GetHeaders);
+
+        var concreteException = Assert.Throws<NotSupportedException>(() => wrapper.GetHeaders = alternateHeaders);
+        Assert.Contains("does not support external GetHeaders assignment", concreteException.Message);
+        Assert.Same(initialHeaders, inner.GetHeaders);
+
+        Assert.Throws<NotSupportedException>(() => tableInterface.GetHeaders = alternateHeaders);
+        Assert.Same(initialHeaders, inner.GetHeaders);
+
+        Assert.Throws<NotSupportedException>(() => postgrestInterface.GetHeaders = alternateHeaders);
+        Assert.Same(initialHeaders, inner.GetHeaders);
+
+        Assert.Throws<NotSupportedException>(() => gettableHeaders.GetHeaders = alternateHeaders);
+        Assert.Same(initialHeaders, inner.GetHeaders);
+    }
+
+    [Fact]
     public void Wrapper_delegates_fluent_members_and_preserves_wrapper_instance()
     {
         var inner = new FakePostgrestTable();
         var wrapper = new SupabaseTable<TableModel>(inner, new FakeRealtimeClient());
         var interfaceWrapper = (ISupabaseTable<TableModel>)wrapper;
         var filter = new FakeQueryFilter("id", global::Supabase.Postgrest.Constants.Operator.Equals, 1);
-        Func<Dictionary<string, string>> headers = StaticHeaders;
-
-        wrapper.GetHeaders = headers;
-
-        Assert.Same(headers, wrapper.GetHeaders);
-        Assert.Same(headers, inner.GetHeaders);
         Assert.Same(wrapper, wrapper.And(new List<global::Supabase.Postgrest.Interfaces.IPostgrestQueryFilter> { filter }));
         Assert.Same(wrapper, wrapper.Columns(new[] { "id", "name" }));
         Assert.Same(wrapper, wrapper.Columns(model => new object[] { model.Name!, model.Id }));
@@ -220,6 +247,11 @@ public sealed class SupabaseTableTests
     private static Dictionary<string, string> StaticHeaders() => new()
     {
         ["apikey"] = "anon-key"
+    };
+
+    private static Dictionary<string, string> AlternateHeaders() => new()
+    {
+        ["apikey"] = "service-role-key"
     };
 
     public sealed class TableModel : global::Supabase.Postgrest.Models.BaseModel

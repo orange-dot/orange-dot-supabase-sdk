@@ -28,10 +28,17 @@ public sealed class SupabaseTable<TModel> : ISupabaseTable<TModel>
 
     public string TableName => _inner.TableName;
 
+    /// <summary>
+    /// Gets the header delegate configured on the inner PostgREST table.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when external code attempts to replace the header delegate. Header authority is managed by the SDK auth binding layer.
+    /// </exception>
     public Func<Dictionary<string, string>>? GetHeaders
     {
         get => _inner.GetHeaders;
-        set => _inner.GetHeaders = value;
+        set => throw new NotSupportedException(
+            "SupabaseTable<T> does not support external GetHeaders assignment. Header authority is managed by the SDK auth binding layer.");
     }
 
     public string GenerateUrl() => _inner.GenerateUrl();
