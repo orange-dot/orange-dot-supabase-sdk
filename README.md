@@ -55,6 +55,12 @@ ORANGEDOT_SUPABASE_RUN_INTEGRATION=1 dotnet test OrangeDot.Supabase.sln --config
 Without `ORANGEDOT_SUPABASE_RUN_INTEGRATION=1`, integration tests are skipped by default so normal CI and local unit-test runs stay green without a local Supabase stack.
 GitHub Actions also runs the live integration suite on Ubuntu; Windows and macOS remain unit-test only.
 
+The local stack now includes repo-managed storage and edge-function fixtures:
+- storage bucket: `integration-public`
+- edge function: `orangedot-integration-smoke`
+
+Those fixtures are intended for integration smoke checks now and richer storage/functions scenarios in follow-up PRs.
+
 ## Manual Lifecycle
 
 ```csharp
