@@ -58,6 +58,7 @@ GitHub Actions also runs the live integration suite on Ubuntu; Windows and macOS
 The local stack now includes repo-managed storage and edge-function fixtures:
 - storage bucket: `integration-public`
 - edge function: `orangedot-integration-smoke`
+- edge function: `orangedot-integration-failure`
 
 Those fixtures are intended for integration smoke checks now and richer storage/functions scenarios in follow-up PRs.
 

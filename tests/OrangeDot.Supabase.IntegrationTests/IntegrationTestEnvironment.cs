@@ -11,6 +11,7 @@ internal static class IntegrationTestEnvironment
     internal const string RunIntegrationVariableName = "ORANGEDOT_SUPABASE_RUN_INTEGRATION";
     internal const string IntegrationBucketName = "integration-public";
     internal const string IntegrationSmokeFunctionName = "orangedot-integration-smoke";
+    internal const string IntegrationFailureFunctionName = "orangedot-integration-failure";
 
     private const string SupabaseUrlVariableName = "SUPABASE_URL";
     private const string SupabaseAnonKeyVariableName = "SUPABASE_ANON_KEY";
@@ -67,6 +68,19 @@ internal static class IntegrationTestEnvironment
         await EnsureFunctionsReachableAsync(settings);
     }
 
+    internal static async Task EnsureOptInAndFailureFunctionReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (!settings.IsEnabled)
+        {
+            return;
+        }
+
+        await EnsureReachableAsync(settings);
+        await EnsureFailureFunctionReachableAsync(settings);
+    }
+
     internal static async Task EnsureOptInAndCapabilitiesReachableAsync(IntegrationTestSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -79,6 +93,7 @@ internal static class IntegrationTestEnvironment
         await EnsureReachableAsync(settings);
         await EnsureStorageReachableAsync(settings);
         await EnsureFunctionsReachableAsync(settings);
+        await EnsureFailureFunctionReachableAsync(settings);
     }
 
     internal static async Task EnsureReachableAsync(IntegrationTestSettings settings)
@@ -178,6 +193,44 @@ internal static class IntegrationTestEnvironment
         {
             throw new InvalidOperationException(
                 $"Local Supabase functions stack returned an unexpected smoke response: {responseBody}");
+        }
+    }
+
+    internal static async Task EnsureFailureFunctionReachableAsync(IntegrationTestSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        using var httpClient = CreateHttpClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{settings.Url}/functions/v1/{IntegrationFailureFunctionName}");
+
+        request.Headers.Add("apikey", settings.AnonKey);
+        request.Content = JsonContent.Create(new
+        {
+            source = "integration-readiness"
+        });
+
+        using var response = await httpClient.SendAsync(request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if ((int)response.StatusCode != 500)
+        {
+            throw new InvalidOperationException(
+                $"Local Supabase failure function is not ready. Expected POST {request.RequestUri} to return 500. Response: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {responseBody}");
+        }
+
+        using var json = JsonDocument.Parse(responseBody);
+        var root = json.RootElement;
+
+        if (!root.TryGetProperty("ok", out var okProperty) || okProperty.GetBoolean() ||
+            !root.TryGetProperty("function", out var functionProperty) ||
+            !string.Equals(functionProperty.GetString(), IntegrationFailureFunctionName, StringComparison.Ordinal) ||
+            !root.TryGetProperty("error", out var errorProperty) ||
+            !string.Equals(errorProperty.GetString(), "controlled_failure", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Local Supabase failure function returned an unexpected response: {responseBody}");
         }
     }
 
