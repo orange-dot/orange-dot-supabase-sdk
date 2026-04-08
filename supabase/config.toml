@@ -69,5 +69,10 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/orangedot-integration-smoke/index.ts"
 
+[functions.orangedot-integration-failure]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/orangedot-integration-failure/index.ts"
+
 [analytics]
 enabled = false

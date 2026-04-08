@@ -20,7 +20,7 @@ public sealed class LocalSupabaseFunctionsFactAttribute : FactAttribute
         if (!string.IsNullOrWhiteSpace(dockerHost) &&
             dockerHost.Contains("podman", StringComparison.OrdinalIgnoreCase))
         {
-            Skip = "Local Supabase edge-function smoke tests are skipped under Podman because the Supabase edge runtime cannot resolve mounted function entrypoints in that environment. Run the integration suite against a Docker-backed Supabase stack to execute this test.";
+            Skip = "Local Supabase edge-function integration tests are skipped under Podman because the Supabase edge runtime cannot resolve mounted function entrypoints in that environment. Run the integration suite against a Docker-backed Supabase stack to execute these tests.";
         }
     }
 }
