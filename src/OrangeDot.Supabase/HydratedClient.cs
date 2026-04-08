@@ -26,10 +26,7 @@ public sealed class HydratedClient : IDisposable
     {
         ThrowIfDisposed();
 
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return await Task.FromCanceled<SupabaseClient>(cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         var childFactory = new SupabaseChildClientFactory();
         SupabaseChildClients? children = null;
@@ -99,8 +96,8 @@ public sealed class HydratedClient : IDisposable
         HeaderAuthBinding? headerBinding,
         RealtimeTokenBinding? realtimeBinding)
     {
-        TryCleanup(() => realtimeBinding?.Dispose());
         TryCleanup(() => headerBinding?.Dispose());
+        TryCleanup(() => realtimeBinding?.Dispose());
         TryCleanup(() => authBridge?.Dispose());
         TryCleanup(() => children?.Auth.Shutdown());
         TryCleanup(() => children?.Realtime.Disconnect());
