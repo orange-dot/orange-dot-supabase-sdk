@@ -186,6 +186,20 @@ internal static class IntegrationTestEnvironment
         return $"{prefix}-{Guid.NewGuid():N}";
     }
 
+    internal static string NewStorageObjectPath(string prefix, string extension)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+
+        var normalizedPrefix = prefix.Trim('/');
+        var normalizedExtension = string.IsNullOrWhiteSpace(extension)
+            ? string.Empty
+            : extension.StartsWith(".", StringComparison.Ordinal)
+                ? extension
+                : $".{extension}";
+
+        return $"{normalizedPrefix}/{Guid.NewGuid():N}{normalizedExtension}";
+    }
+
     internal static async Task CleanupByOwnerTagAsync(
         global::Supabase.Postgrest.Interfaces.IPostgrestClient postgrest,
         string ownerTag)
@@ -196,6 +210,23 @@ internal static class IntegrationTestEnvironment
         await postgrest.Table<IntegrationTodo>()
             .Filter("owner_tag", global::Supabase.Postgrest.Constants.Operator.Equals, ownerTag)
             .Delete();
+    }
+
+    internal static async Task BestEffortRemoveStorageObjectAsync(
+        global::Supabase.Storage.Interfaces.IStorageFileApi<global::Supabase.Storage.FileObject> bucket,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(bucket);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        try
+        {
+            await bucket.Remove(path);
+        }
+        catch (global::Supabase.Storage.Exceptions.SupabaseStorageException ex)
+            when (ex.Reason == global::Supabase.Storage.Exceptions.FailureHint.Reason.NotFound)
+        {
+        }
     }
 
     private static bool IsEnabled(string? value)
