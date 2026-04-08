@@ -34,3 +34,14 @@ Each vector uses this top-level shape:
 - Binding names use `Postgrest`, `Realtime`, `Storage`, and `Functions`.
 - URL vectors use a single base URL and expect all derived endpoints from that same normalized base.
 - Trivial restatements of the typed lifecycle API and read-only policy assertions should stay out of this directory unless they drive a real replay test.
+
+## Schema Validation
+
+Each domain has a JSON Schema under `schemas/`. To validate locally:
+
+```
+pip install check-jsonschema
+bash scripts/validate-test-vectors.sh
+```
+
+The validator checks: schema conformance, ID uniqueness, and invariant reference validity.
