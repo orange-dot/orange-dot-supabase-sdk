@@ -1,3 +1,4 @@
+using System;
 using OrangeDot.Supabase;
 using System.Threading.Tasks;
 
@@ -25,9 +26,25 @@ public sealed class LocalSupabaseStatefulFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (Client is not null && Client.Auth.CurrentSession is not null)
+        if (Client is null)
         {
-            await Client.Auth.SignOut();
+            return;
+        }
+
+        try
+        {
+            if (Client.Auth.CurrentSession is not null)
+            {
+                await Client.Auth.SignOut();
+            }
+        }
+        catch (Exception)
+        {
+            // Sign-out is best-effort during teardown.
+        }
+        finally
+        {
+            Client.Dispose();
         }
     }
 }

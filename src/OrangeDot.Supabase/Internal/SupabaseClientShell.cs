@@ -59,16 +59,19 @@ internal sealed class SupabaseClientShell : ISupabaseClient
     {
         ArgumentNullException.ThrowIfNull(client);
 
-        if (_disposed != 0)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             client.Dispose();
             return;
         }
 
-        if (_readySource.TrySetResult(client))
+        if (!_readySource.TrySetResult(client))
         {
-            _logger.LogInformation("Supabase client readiness completed.");
+            client.Dispose();
+            return;
         }
+
+        _logger.LogInformation("Supabase client readiness completed.");
     }
 
     internal void SetInitializationFailed(Exception exception)
@@ -91,7 +94,7 @@ internal sealed class SupabaseClientShell : ISupabaseClient
 
     private SupabaseClient GetReadyClient()
     {
-        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
         if (!_readySource.Task.IsCompletedSuccessfully)
         {
