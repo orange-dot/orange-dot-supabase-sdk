@@ -81,7 +81,7 @@ This is an **imperative fan-out** pattern. The orchestrator must know about ever
 Secondary problem: the pattern is hard to test. Mocking "the orchestrator pushes into these four delegates" requires threading all four child clients through the test fixture.
 
 **Chosen alternative.**
-Expose auth state through a lightweight homegrown observer. The orchestrator publishes auth state changes once. Anything that needs to react — child clients, custom subscribers, observability — subscribes. The orchestrator does not know who listens. New subscribers immediately receive `Current`, so late-starting hosted services do not miss the latest auth state.
+Expose auth state through a lightweight homegrown observer. The orchestrator publishes auth state changes once. Anything that needs to react — child clients, custom subscribers, observability — subscribes. The orchestrator does not know who listens. New subscribers immediately receive `Current`, so late-starting consumers do not miss the latest auth state.
 
 ```csharp
 public interface IAuthStateObserver
@@ -90,50 +90,53 @@ public interface IAuthStateObserver
     IDisposable Subscribe(Action<AuthState> listener);
 }
 
-public abstract record AuthState
+public abstract record AuthState(long CanonicalVersion)
 {
-    public sealed record Anonymous                          : AuthState;
-    public sealed record Authenticated(string AccessToken,
+    public sealed record Anonymous()                        : AuthState(0);
+    public sealed record Authenticated(long CanonicalVersion,
+                                       string AccessToken,
                                        string RefreshToken,
-                                       DateTimeOffset ExpiresAt) : AuthState;
-    public sealed record SignedOut                          : AuthState;
+                                       DateTimeOffset ExpiresAt) : AuthState(CanonicalVersion);
+    public sealed record Refreshing(long CanonicalVersion,
+                                    long PendingRefreshVersion,
+                                    string AccessToken,
+                                    string RefreshToken,
+                                    DateTimeOffset ExpiresAt) : AuthState(CanonicalVersion);
+    public sealed record SignedOut(long CanonicalVersion)   : AuthState(CanonicalVersion);
+    public sealed record Faulted(long CanonicalVersion,
+                                 long PendingRefreshVersion,
+                                 string Reason) : AuthState(CanonicalVersion);
 }
 
 // Child-binding subscribers live in their own classes, not in the orchestrator
-internal sealed class RealtimeTokenBinding : IHostedService
+internal sealed class RealtimeTokenBinding : IDisposable
 {
     private readonly IAuthStateObserver _auth;
     private readonly IRealtimeClient _realtime;
-    private IDisposable? _subscription;
+    private readonly IDisposable _subscription;
 
     public RealtimeTokenBinding(IAuthStateObserver auth, IRealtimeClient realtime)
     {
         _auth = auth;
         _realtime = realtime;
+        _subscription = _auth.Subscribe(Apply);
     }
 
-    public Task StartAsync(CancellationToken ct)
+    public void Dispose()
     {
-        _subscription = _auth.Subscribe(state =>
-        {
-            if (state is AuthState.Authenticated authenticated)
-                _realtime.SetAccessToken(authenticated.AccessToken);
-        });
-
-        return Task.CompletedTask;
+        _subscription.Dispose();
     }
 
-    public Task StopAsync(CancellationToken ct)
+    private void Apply(AuthState state)
     {
-        _subscription?.Dispose();
-        _subscription = null;
-        return Task.CompletedTask;
+        if (state is AuthState.Authenticated authenticated)
+            _realtime.SetAuth(authenticated.AccessToken);
     }
 }
 ```
 
 **Why it is better.**
-Adding a new auth-aware subsystem is a new `IHostedService` registration, **zero orchestrator changes**. Inverts control: children pull, they do not wait to be pushed into. Replay-on-subscribe means hosted bindings can start after the orchestrator and still receive the current token immediately. Testing a child's auth reaction requires nothing more than producing one event onto the observer.
+Adding a new auth-aware subsystem is a new subscriber class, **zero orchestrator changes**. Inverts control: children pull, they do not wait to be pushed into. Replay-on-subscribe means bindings can attach after the orchestrator and still receive the current token immediately. Testing a child's auth reaction requires nothing more than producing one event onto the observer.
 
 **Cost.**
 One small homegrown abstraction plus a few lines of thread-safe subscription code. No `System.Reactive` dependency.

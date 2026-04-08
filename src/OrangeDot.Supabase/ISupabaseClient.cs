@@ -1,9 +1,10 @@
+using System;
 using System.Threading.Tasks;
 using OrangeDot.Supabase.Urls;
 
 namespace OrangeDot.Supabase;
 
-public interface ISupabaseClient
+public interface ISupabaseClient : IDisposable
 {
     global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session> Auth { get; }
 

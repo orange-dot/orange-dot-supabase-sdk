@@ -177,4 +177,60 @@ public sealed class LifecycleTransitionTests
         Assert.Equal("second-key", secondClient.AnonKey);
         Assert.NotSame(firstClient, secondClient);
     }
+
+    [Fact]
+    public async Task Disposed_configured_client_rejects_further_transitions()
+    {
+        var configured = SupabaseClient.Configure(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "anon-key"
+        });
+
+        configured.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await configured.LoadPersistedSessionAsync());
+    }
+
+    [Fact]
+    public async Task Disposed_hydrated_client_rejects_initialization()
+    {
+        var configured = SupabaseClient.Configure(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "anon-key"
+        });
+
+        var hydrated = await configured.LoadPersistedSessionAsync();
+        hydrated.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await hydrated.InitializeAsync());
+    }
+
+    [Fact]
+    public async Task Disposed_client_rejects_public_operations()
+    {
+        var configured = SupabaseClient.Configure(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "anon-key"
+        });
+
+        var client = await (await configured.LoadPersistedSessionAsync()).InitializeAsync();
+        client.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Auth);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Postgrest);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Realtime);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Storage);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Functions);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Url);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.AnonKey);
+        Assert.Throws<ObjectDisposedException>(() => _ = client.Urls);
+        Assert.Throws<ObjectDisposedException>(() => client.Table<TestModel>());
+    }
+
+    private sealed class TestModel : global::Supabase.Postgrest.Models.BaseModel
+    {
+    }
 }

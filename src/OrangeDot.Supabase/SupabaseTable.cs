@@ -210,8 +210,6 @@ public sealed class SupabaseTable<TModel> : ISupabaseTable<TModel>
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentException.ThrowIfNullOrWhiteSpace(schema);
 
-        // ConnectAsync is expected to be idempotent; no lock needed
-        // because each SupabaseTable instance is short-lived.
         if (!_realtime.HasSocket)
         {
             await _realtime.ConnectAsync();
@@ -228,7 +226,15 @@ public sealed class SupabaseTable<TModel> : ISupabaseTable<TModel>
         channel.Register(options);
         channel.AddPostgresChangeHandler(listenType, handler);
 
-        return await channel.Subscribe(timeoutMs);
+        try
+        {
+            return await channel.Subscribe(timeoutMs);
+        }
+        catch
+        {
+            _realtime.Remove(channel);
+            throw;
+        }
     }
 
     public ISupabaseTable<TModel> Or(List<global::Supabase.Postgrest.Interfaces.IPostgrestQueryFilter> filters)
@@ -339,7 +345,7 @@ public sealed class SupabaseTable<TModel> : ISupabaseTable<TModel>
 
     global::Supabase.Postgrest.Interfaces.IPostgrestTable<TModel> global::Supabase.Postgrest.Interfaces.IPostgrestTable<TModel>.Columns(Expression<Func<TModel, object[]>> predicate) => Columns(predicate);
 
-#pragma warning disable CS8769
+#pragma warning disable CS8769 // Upstream nullable annotations differ from the wrapper's fluent-return surface.
     global::Supabase.Postgrest.Interfaces.IPostgrestTable<TModel> global::Supabase.Postgrest.Interfaces.IPostgrestTable<TModel>.Filter<TCriterion>(string columnName, global::Supabase.Postgrest.Constants.Operator op, TCriterion criterion) => Filter(columnName, op, criterion);
 
     global::Supabase.Postgrest.Interfaces.IPostgrestTable<TModel> global::Supabase.Postgrest.Interfaces.IPostgrestTable<TModel>.Filter<TCriterion>(Expression<Func<TModel, object>> predicate, global::Supabase.Postgrest.Constants.Operator op, TCriterion criterion) => Filter(predicate, op, criterion);

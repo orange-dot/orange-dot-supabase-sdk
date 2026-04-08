@@ -179,6 +179,18 @@ public sealed class SupabaseTableTests
     }
 
     [Fact]
+    public async Task On_removes_channel_when_subscribe_throws()
+    {
+        var realtime = new FakeRealtimeClient { HasSocket = true, ThrowOnSubscribe = true };
+        var wrapper = new SupabaseTable<TableModel>(new FakePostgrestTable(), realtime);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            wrapper.On(PostgresChangesOptions.ListenType.Inserts, static (_, _) => { }));
+
+        Assert.Single(realtime.RemovedTopics);
+    }
+
+    [Fact]
     public void Shell_blocks_table_access_before_readiness_and_forwards_after_readiness()
     {
         var shell = new SupabaseClientShell(new NullLogger<SupabaseClientShell>());
@@ -524,9 +536,13 @@ public sealed class SupabaseTableTests
     {
         public bool HasSocket { get; set; }
 
+        public bool ThrowOnSubscribe { get; set; }
+
         public int ConnectAsyncCallCount { get; private set; }
 
         public List<string> ChannelNames { get; } = new();
+
+        public List<string> RemovedTopics { get; } = new();
 
         public Task ConnectAsync()
         {
@@ -538,15 +554,27 @@ public sealed class SupabaseTableTests
         public global::Supabase.Realtime.Interfaces.IRealtimeChannel Channel(string channelName)
         {
             ChannelNames.Add(channelName);
-            return new FakeRealtimeChannel(channelName);
+            return new FakeRealtimeChannel(channelName, ThrowOnSubscribe);
+        }
+
+        public void Remove(global::Supabase.Realtime.Interfaces.IRealtimeChannel channel)
+        {
+            RemovedTopics.Add(channel.Topic);
+        }
+
+        public void Dispose()
+        {
         }
     }
 
     private sealed class FakeRealtimeChannel : global::Supabase.Realtime.Interfaces.IRealtimeChannel
     {
-        public FakeRealtimeChannel(string topic)
+        private readonly bool _throwOnSubscribe;
+
+        public FakeRealtimeChannel(string topic, bool throwOnSubscribe)
         {
             Topic = topic;
+            _throwOnSubscribe = throwOnSubscribe;
             Options = new ChannelOptions(new global::Supabase.Realtime.ClientOptions(), static () => null, new Newtonsoft.Json.JsonSerializerSettings());
         }
 
@@ -641,6 +669,12 @@ public sealed class SupabaseTableTests
             CallOrder.Add("Subscribe");
             SubscribeTimeoutMs = timeoutMs;
             HasJoinedOnce = true;
+
+            if (_throwOnSubscribe)
+            {
+                throw new InvalidOperationException("subscribe failed");
+            }
+
             return Task.FromResult<global::Supabase.Realtime.Interfaces.IRealtimeChannel>(this);
         }
 
