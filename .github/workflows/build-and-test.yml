@@ -10,6 +10,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  validate-vectors:
+    name: Validate test vectors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install check-jsonschema
+        run: pip install check-jsonschema
+
+      - name: Validate
+        run: bash scripts/validate-test-vectors.sh
+
   build-and-test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
