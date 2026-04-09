@@ -61,6 +61,13 @@ install_homebrew_if_needed() {
 }
 
 install_supabase_cli() {
+  if brew list --formula supabase/tap/supabase >/dev/null 2>&1; then
+    echo "Supabase CLI already installed. Updating Homebrew and upgrading Supabase CLI..."
+    brew update
+    brew upgrade supabase/tap/supabase
+    return 0
+  fi
+
   echo "Installing Supabase CLI via Homebrew..."
   brew install supabase/tap/supabase
 }
@@ -80,6 +87,8 @@ main() {
 
 Next steps:
   cd ${REPO_ROOT}
+  # If a local Supabase stack is already running, stop it before upgrading the CLI.
+  # Example: supabase stop --no-backup
   supabase start
   ORANGEDOT_SUPABASE_RUN_INTEGRATION=1 dotnet test OrangeDot.Supabase.sln --configuration Release
 EOF
