@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -170,7 +171,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
 
         if (reconnectMethod is not null)
         {
-            var reconnectResult = reconnectMethod.Invoke(socket, null);
+            var reconnectResult = InvokeReconnectMethod(socket, reconnectMethod);
 
             if (reconnectResult is Task reconnectTask)
             {
@@ -189,7 +190,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
             ?? throw new InvalidOperationException(
                 $"Cannot force reconnect because {connection.GetType().FullName} does not expose a reconnect method.");
 
-        var connectionReconnectResult = connectionReconnectMethod.Invoke(connection, null);
+        var connectionReconnectResult = InvokeReconnectMethod(connection, connectionReconnectMethod);
 
         if (connectionReconnectResult is Task connectionReconnectTask)
         {
@@ -199,8 +200,38 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
 
     private static MethodInfo? FindReconnectMethod(Type type)
     {
-        return type.GetMethod("Reconnect", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? type.GetMethod("ReconnectAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return FindReconnectMethod(type, "Reconnect")
+            ?? FindReconnectMethod(type, "ReconnectAsync");
+    }
+
+    private static MethodInfo? FindReconnectMethod(Type type, string methodName)
+    {
+        var methods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Where(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
+            .Where(method => !method.IsGenericMethod)
+            .ToArray();
+
+        return methods.FirstOrDefault(method => method.GetParameters().Length == 0)
+            ?? methods.FirstOrDefault(HasSingleCancellationTokenParameter);
+    }
+
+    private static bool HasSingleCancellationTokenParameter(MethodInfo method)
+    {
+        var parameters = method.GetParameters();
+        return parameters.Length == 1 && parameters[0].ParameterType == typeof(CancellationToken);
+    }
+
+    private static object? InvokeReconnectMethod(object target, MethodInfo method)
+    {
+        var parameters = method.GetParameters();
+
+        return parameters.Length switch
+        {
+            0 => method.Invoke(target, null),
+            1 when parameters[0].ParameterType == typeof(CancellationToken) => method.Invoke(target, [CancellationToken.None]),
+            _ => throw new InvalidOperationException(
+                $"Cannot invoke reconnect method {method.DeclaringType?.FullName}.{method.Name} because its signature is unsupported.")
+        };
     }
 
     private void Unsubscribe(long subscriptionId)

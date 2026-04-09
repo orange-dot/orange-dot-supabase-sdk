@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using OrangeDot.Supabase.Internal;
 
@@ -62,6 +63,17 @@ public sealed class SupabaseTableRealtimeClientTests
         Assert.Equal(1, socket.Connection.ReconnectCallCount);
     }
 
+    [Fact]
+    public async Task Invoke_reconnect_async_prefers_parameterless_reconnect_when_multiple_overloads_exist()
+    {
+        var socket = new FakeReconnectTargetWithOverloads();
+
+        await SupabaseTableRealtimeClient.InvokeReconnectAsync(socket);
+
+        Assert.Equal(1, socket.ParameterlessReconnectCallCount);
+        Assert.Equal(0, socket.CancellationTokenReconnectCallCount);
+    }
+
     private static void NotifySocketState(
         global::Supabase.Realtime.Client realtime,
         global::Supabase.Realtime.Constants.SocketState state)
@@ -99,6 +111,25 @@ public sealed class SupabaseTableRealtimeClientTests
         public Task Reconnect()
         {
             ReconnectCallCount++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeReconnectTargetWithOverloads
+    {
+        public int ParameterlessReconnectCallCount { get; private set; }
+
+        public int CancellationTokenReconnectCallCount { get; private set; }
+
+        public Task Reconnect()
+        {
+            ParameterlessReconnectCallCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task Reconnect(CancellationToken cancellationToken)
+        {
+            CancellationTokenReconnectCallCount++;
             return Task.CompletedTask;
         }
     }
