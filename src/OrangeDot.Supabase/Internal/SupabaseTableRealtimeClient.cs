@@ -13,6 +13,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly object _stateGate = new();
     private readonly Dictionary<long, Action<global::Supabase.Realtime.Constants.SocketState>> _stateListeners = new();
+    private global::Supabase.Realtime.Interfaces.IRealtimeSocket? _observedSocket;
     private long _nextSubscriptionId = 1;
     private global::Supabase.Realtime.Constants.SocketState? _lastSocketState;
     private int _disposed;
@@ -21,7 +22,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
         global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> realtime)
     {
         _realtime = realtime;
-        _realtime.AddStateChangedHandler(HandleSocketStateChanged);
+        AttachToSocketIfNeeded();
     }
 
     public bool HasSocket => _realtime.Socket is not null;
@@ -43,6 +44,8 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
             {
                 await _realtime.ConnectAsync().ConfigureAwait(false);
             }
+
+            AttachToSocketIfNeeded();
         }
         finally
         {
@@ -113,6 +116,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
         var socket = _realtime.Socket
             ?? throw new InvalidOperationException("Cannot force reconnect because the realtime socket is not connected.");
 
+        AttachToSocketIfNeeded();
         await InvokeReconnectAsync(socket).ConfigureAwait(false);
     }
 
@@ -123,7 +127,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
             return;
         }
 
-        _realtime.RemoveStateChangedHandler(HandleSocketStateChanged);
+        DetachObservedSocket();
         lock (_stateGate)
         {
             _stateListeners.Clear();
@@ -133,7 +137,7 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
     }
 
     private void HandleSocketStateChanged(
-        global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> _,
+        global::Supabase.Realtime.Interfaces.IRealtimeSocket _,
         global::Supabase.Realtime.Constants.SocketState state)
     {
         if (Volatile.Read(ref _disposed) != 0)
@@ -141,6 +145,48 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
             return;
         }
 
+        PublishSocketState(state);
+    }
+
+    private void AttachToSocketIfNeeded()
+    {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+
+        var socket = _realtime.Socket;
+        if (ReferenceEquals(socket, _observedSocket))
+        {
+            return;
+        }
+
+        DetachObservedSocket();
+
+        if (socket is null)
+        {
+            return;
+        }
+
+        socket.AddStateChangedHandler(HandleSocketStateChanged);
+        _observedSocket = socket;
+
+        if (socket.IsConnected)
+        {
+            PublishSocketState(global::Supabase.Realtime.Constants.SocketState.Open);
+        }
+    }
+
+    private void DetachObservedSocket()
+    {
+        if (_observedSocket is null)
+        {
+            return;
+        }
+
+        _observedSocket.RemoveStateChangedHandler(HandleSocketStateChanged);
+        _observedSocket = null;
+    }
+
+    private void PublishSocketState(global::Supabase.Realtime.Constants.SocketState state)
+    {
         Action<global::Supabase.Realtime.Constants.SocketState>[] listeners;
 
         lock (_stateGate)

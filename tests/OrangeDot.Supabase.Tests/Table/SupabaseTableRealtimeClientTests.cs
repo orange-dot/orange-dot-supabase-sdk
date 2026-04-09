@@ -13,16 +13,20 @@ public sealed class SupabaseTableRealtimeClientTests
     public void Subscribe_to_socket_state_replays_latest_state_and_stops_after_dispose()
     {
         var realtime = new global::Supabase.Realtime.Client("wss://abc.supabase.co/realtime/v1");
+        using var socket = new global::Supabase.Realtime.RealtimeSocket(
+            "wss://abc.supabase.co/realtime/v1",
+            new global::Supabase.Realtime.ClientOptions());
+        SetSocket(realtime, socket);
         using var wrapper = new SupabaseTableRealtimeClient(realtime);
 
-        NotifySocketState(realtime, global::Supabase.Realtime.Constants.SocketState.Open);
+        NotifySocketState(socket, global::Supabase.Realtime.Constants.SocketState.Open);
 
         var received = new List<global::Supabase.Realtime.Constants.SocketState>();
         var subscription = wrapper.SubscribeToSocketState(received.Add);
 
-        NotifySocketState(realtime, global::Supabase.Realtime.Constants.SocketState.Reconnect);
+        NotifySocketState(socket, global::Supabase.Realtime.Constants.SocketState.Reconnect);
         subscription.Dispose();
-        NotifySocketState(realtime, global::Supabase.Realtime.Constants.SocketState.Open);
+        NotifySocketState(socket, global::Supabase.Realtime.Constants.SocketState.Open);
 
         Assert.Equal(
             [
@@ -75,15 +79,27 @@ public sealed class SupabaseTableRealtimeClientTests
     }
 
     private static void NotifySocketState(
-        global::Supabase.Realtime.Client realtime,
+        global::Supabase.Realtime.RealtimeSocket socket,
         global::Supabase.Realtime.Constants.SocketState state)
     {
-        var method = typeof(global::Supabase.Realtime.Client).GetMethod(
+        var method = typeof(global::Supabase.Realtime.RealtimeSocket).GetMethod(
             "NotifySocketStateChange",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         Assert.NotNull(method);
-        method!.Invoke(realtime, [state]);
+        method!.Invoke(socket, [state]);
+    }
+
+    private static void SetSocket(
+        global::Supabase.Realtime.Client realtime,
+        global::Supabase.Realtime.Interfaces.IRealtimeSocket socket)
+    {
+        var field = typeof(global::Supabase.Realtime.Client).GetField(
+            "<Socket>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        field!.SetValue(realtime, socket);
     }
 
     private sealed class FakeReconnectTarget
