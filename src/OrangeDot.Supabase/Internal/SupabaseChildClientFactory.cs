@@ -8,18 +8,27 @@ internal sealed class SupabaseChildClientFactory
 {
     internal SupabaseChildClients Create(LifecycleSnapshot snapshot, CancellationToken cancellationToken = default)
     {
+        return Create(snapshot, NoOpSupabaseSessionStore.Instance, cancellationToken);
+    }
+
+    internal SupabaseChildClients Create(
+        LifecycleSnapshot snapshot,
+        ISupabaseSessionStore sessionStore,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(sessionStore);
 
         cancellationToken.ThrowIfCancellationRequested();
         var staticHeaders = CreateStaticHeaders(snapshot.AnonKey);
         var dynamicAuthHeaders = new DynamicAuthHeaders(snapshot.AnonKey);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var auth = new global::Supabase.Gotrue.Client(new global::Supabase.Gotrue.ClientOptions
+        var auth = new PersistedGotrueClient(new global::Supabase.Gotrue.ClientOptions
         {
             Url = snapshot.Urls.AuthUrl,
             Headers = new Dictionary<string, string>(staticHeaders)
-        })
+        }, sessionStore)
         {
             GetHeaders = dynamicAuthHeaders.Build
         };

@@ -11,15 +11,20 @@ public sealed class HydratedClient : IDisposable
 {
     private readonly LifecycleSnapshot _snapshot;
     private readonly SupabaseRuntimeContext _runtimeContext;
+    private readonly global::Supabase.Gotrue.Session? _restoredSession;
     private bool _disposed;
 
     // Test-only seam for deterministic cancellation cleanup coverage.
     internal Func<SupabaseChildClients, GotrueAuthStateBridge, HeaderAuthBinding, RealtimeTokenBinding, Task>? BeforeFinalizeTestHookAsync { private get; set; }
 
-    internal HydratedClient(LifecycleSnapshot snapshot, SupabaseRuntimeContext runtimeContext)
+    internal HydratedClient(
+        LifecycleSnapshot snapshot,
+        SupabaseRuntimeContext runtimeContext,
+        global::Supabase.Gotrue.Session? restoredSession = null)
     {
         _snapshot = snapshot;
         _runtimeContext = runtimeContext;
+        _restoredSession = restoredSession;
     }
 
     public async Task<SupabaseClient> InitializeAsync(CancellationToken cancellationToken = default)
@@ -37,7 +42,12 @@ public sealed class HydratedClient : IDisposable
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            children = childFactory.Create(_snapshot, cancellationToken);
+            children = childFactory.Create(_snapshot, _runtimeContext.SessionStore, cancellationToken);
+            if (_restoredSession is not null)
+            {
+                GotrueSessionAccessor.SetCurrentSession(children.Auth, _restoredSession);
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             var metrics = SupabaseMetrics.TryCreate(_runtimeContext.MeterFactory);
             var loggerFactory = _runtimeContext.LoggerFactory;
@@ -45,7 +55,8 @@ public sealed class HydratedClient : IDisposable
                 children.Auth,
                 _runtimeContext.AuthStateObserver,
                 loggerFactory.CreateLogger<GotrueAuthStateBridge>(),
-                metrics);
+                metrics,
+                _runtimeContext.SessionStore);
             cancellationToken.ThrowIfCancellationRequested();
             headerBinding = new HeaderAuthBinding(
                 _runtimeContext.AuthStateObserver,

@@ -53,7 +53,11 @@ internal sealed class SupabaseStartupService : IHostedService
 
         try
         {
-            var runtimeContext = new SupabaseRuntimeContext(_authStateObserver, _loggerFactory, _meterFactory);
+            var runtimeContext = new SupabaseRuntimeContext(
+                _authStateObserver,
+                _loggerFactory,
+                _meterFactory,
+                _options.Value.SessionStore ?? NoOpSupabaseSessionStore.Instance);
             var configured = SupabaseClient.Configure(_options.Value, runtimeContext);
             var hydrated = await configured.LoadPersistedSessionAsync().ConfigureAwait(false);
             var client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);

@@ -134,7 +134,8 @@ public sealed class SupabaseClient : ISupabaseClient
 
     public static ConfiguredClient Configure(SupabaseOptions options)
     {
-        return Configure(options, SupabaseRuntimeContext.CreateDefault());
+        ArgumentNullException.ThrowIfNull(options);
+        return Configure(options, SupabaseRuntimeContext.CreateDefault(options.SessionStore));
     }
 
     internal static ConfiguredClient Configure(SupabaseOptions options, SupabaseRuntimeContext runtimeContext)
