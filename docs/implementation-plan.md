@@ -94,7 +94,7 @@ Delivery target: polished v0.1 design package and prototype baseline
 
 **Afternoon: DI extensions (Contrast 5, supporting)**
 - `src/OrangeDot.Supabase/Extensions/ServiceCollectionExtensions.cs`
-- `services.AddSupabase(opts => { opts.Url = ...; opts.AnonKey = ...; })` registers:
+- `services.AddSupabaseHosted(opts => { opts.Url = ...; opts.AnonKey = ...; })` registers:
   - `SupabaseOptions` as `IOptions<SupabaseOptions>`
   - `IAuthStateObserver` as singleton
   - `ISupabaseClient` as a readiness-gated singleton shell
@@ -102,18 +102,18 @@ Delivery target: polished v0.1 design package and prototype baseline
   - All child module clients and auth-aware bindings as singletons
 - Console/manual path stays explicit: `SupabaseClient.Configure(options) -> LoadPersistedSessionAsync() -> InitializeAsync(ct)`
 - The DI-resolved client exposes `Task Ready { get; }`; public operations await readiness before first use
-- `services.AddSupabase(...)` registers the hosted startup driver explicitly, not implicitly through constructor side effects
+- `services.AddSupabaseHosted(...)` registers the hosted startup driver explicitly, not implicitly through constructor side effects
 
 **Tests**
 - `LifecycleTransitionTests.cs` — happy path, configuration validation failures, session-load failures, cancellation propagation
-- `ServiceRegistrationTests.cs` — `services.AddSupabase(...)` resolves all expected types, hosted services, and scoping
+- `ServiceRegistrationTests.cs` — `services.AddSupabaseHosted(...)` resolves all expected types, hosted services, and scoping
 - `ReadinessGateTests.cs` — DI path blocks public operations until hosted bootstrap completes and `Ready` is signaled
 - `LifecycleCompileProofTests.cs` — Roslyn-based negative compilation test proving invalid lifecycle skips do not compile
 
 **End of Day 3 deliverable:**
 - Full construction paths work:
   - Console/manual: `SupabaseClient.Configure(options) -> LoadPersistedSessionAsync() -> InitializeAsync(ct)`
-  - DI/hosted: `services.AddSupabase(...)` -> host start -> resolve `ISupabaseClient` -> await `Ready` -> use it
+  - DI/hosted: `services.AddSupabaseHosted(...)` -> host start -> resolve `ISupabaseClient` -> await `Ready` -> use it
 - Lifecycle types enforce correct ordering at compile time
 - Roslyn negative-compilation coverage proves that trying to skip a lifecycle step fails at compile time
 
@@ -187,7 +187,7 @@ Delivery target: polished v0.1 design package and prototype baseline
 - Tests use a dedicated test schema, cleaned between runs
 
 **Afternoon: AspNetCore sample + README**
-- `samples/AspNetCore/` — minimal web API with `services.AddSupabase(...)`, one endpoint that queries a table, middleware that attaches auth
+- `samples/AspNetCore/` — minimal web API with `services.AddSupabaseHosted(...)`, one endpoint that queries a table, middleware that attaches auth
 - `README.md` polish:
   - Short project overview (3 paragraphs)
   - The three contrasts with code snippets

@@ -273,7 +273,7 @@ public sealed class SupabaseHostedStartupTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddSupabase(configure);
+                services.AddSupabaseHosted(configure);
             })
             .Build();
     }
