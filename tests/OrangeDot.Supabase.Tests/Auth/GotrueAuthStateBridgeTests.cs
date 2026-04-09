@@ -147,6 +147,46 @@ public sealed class GotrueAuthStateBridgeTests
     }
 
     [Fact]
+    public void Bridge_deduplicates_signed_in_after_user_updated_for_same_session()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        var store = new RecordingSessionStore();
+        var received = new List<AuthState>();
+        using var subscription = observer.Subscribe(received.Add);
+        using var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null, store);
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+        auth.NotifyAuthStateChange(GotrueAuthState.UserUpdated);
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
+
+        var authenticatedStates = received.OfType<AuthState.Authenticated>().ToArray();
+
+        Assert.Single(authenticatedStates);
+        Assert.Equal(1, authenticatedStates[0].CanonicalVersion);
+        Assert.Equal(1, store.PersistCalls);
+    }
+
+    [Fact]
+    public void Bridge_ignores_duplicate_signed_out_events()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        var store = new RecordingSessionStore();
+        var received = new List<AuthState>();
+        using var subscription = observer.Subscribe(received.Add);
+        using var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null, store);
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedOut);
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedOut);
+
+        Assert.Single(received.OfType<AuthState.SignedOut>());
+        Assert.Equal(1, store.ClearCalls);
+    }
+
+    [Fact]
     public void Bridge_publishes_faulted_state_when_refresh_event_has_no_valid_session()
     {
         var auth = CreateAuthClient();

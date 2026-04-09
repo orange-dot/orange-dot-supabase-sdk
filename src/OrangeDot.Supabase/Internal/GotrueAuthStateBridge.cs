@@ -71,6 +71,14 @@ internal sealed class GotrueAuthStateBridge : IDisposable
             case GotrueAuthState.SignedIn:
                 if (TryCreateSessionSnapshot(sender.CurrentSession, out var signedInSnapshot))
                 {
+                    if (IsRedundantAuthenticatedProjection(signedInSnapshot))
+                    {
+                        _logger.LogDebug(
+                            "Ignored duplicate Gotrue auth state {State} for an already-projected session.",
+                            stateChanged);
+                        break;
+                    }
+
                     PersistSessionOrThrow(sender.CurrentSession!, stateChanged);
                     states.Add((BuildAuthenticatedState(signedInSnapshot, advanceVersion: true), stateChanged.ToString(), false));
                 }
@@ -112,12 +120,38 @@ internal sealed class GotrueAuthStateBridge : IDisposable
 
                 break;
             case GotrueAuthState.SignedOut:
+                if (IsDuplicateSignedOut())
+                {
+                    _logger.LogDebug("Ignored duplicate Gotrue auth state {State}.", stateChanged);
+                    break;
+                }
+
                 ClearPersistedSessionOrThrow(stateChanged);
                 states.Add((BuildSignedOutState(), stateChanged.ToString(), false));
                 break;
             case GotrueAuthState.PasswordRecovery:
-            case GotrueAuthState.MfaChallengeVerified:
                 _logger.LogWarning("Observed non-canonical Gotrue auth state {State}. No canonical transition was published.", stateChanged);
+                break;
+            case GotrueAuthState.MfaChallengeVerified:
+                if (TryCreateSessionSnapshot(sender.CurrentSession, out var mfaVerifiedSnapshot))
+                {
+                    if (IsRedundantAuthenticatedProjection(mfaVerifiedSnapshot))
+                    {
+                        _logger.LogDebug(
+                            "Ignored duplicate Gotrue auth state {State} for an already-projected session.",
+                            stateChanged);
+                        break;
+                    }
+
+                    PersistSessionOrThrow(sender.CurrentSession!, stateChanged);
+                    states.Add((BuildAuthenticatedState(mfaVerifiedSnapshot, advanceVersion: true), stateChanged.ToString(), false));
+                }
+                else
+                {
+                    ClearPersistedSessionOrThrow(stateChanged);
+                    states.Add((BuildFaultedState("MFA verification completed without a valid session."), stateChanged.ToString(), false));
+                }
+
                 break;
             case GotrueAuthState.Shutdown:
                 _logger.LogInformation("Observed Gotrue shutdown event.");
@@ -169,6 +203,11 @@ internal sealed class GotrueAuthStateBridge : IDisposable
 
     private void PersistSessionOrThrow(global::Supabase.Gotrue.Session session, GotrueAuthState source)
     {
+        if (SessionStoreSyncContext.IsBridgePersistenceSuppressed)
+        {
+            return;
+        }
+
         try
         {
             _sessionStore.PersistAsync(session).GetAwaiter().GetResult();
@@ -186,6 +225,11 @@ internal sealed class GotrueAuthStateBridge : IDisposable
 
     private void ClearPersistedSessionOrThrow(GotrueAuthState source)
     {
+        if (SessionStoreSyncContext.IsBridgePersistenceSuppressed)
+        {
+            return;
+        }
+
         try
         {
             _sessionStore.ClearAsync().GetAwaiter().GetResult();
@@ -209,6 +253,24 @@ internal sealed class GotrueAuthStateBridge : IDisposable
         }
 
         _auth.RemoveStateChangedListener(HandleAuthStateChanged);
+    }
+
+    private bool IsRedundantAuthenticatedProjection(SessionSnapshot snapshot)
+    {
+        lock (_gate)
+        {
+            return _currentState is OrangeDotAuthState.Authenticated authenticated
+                && string.Equals(authenticated.AccessToken, snapshot.AccessToken, StringComparison.Ordinal)
+                && string.Equals(authenticated.RefreshToken, snapshot.RefreshToken, StringComparison.Ordinal);
+        }
+    }
+
+    private bool IsDuplicateSignedOut()
+    {
+        lock (_gate)
+        {
+            return _currentState is OrangeDotAuthState.SignedOut;
+        }
     }
 
     internal static bool TryCreateSessionSnapshot(

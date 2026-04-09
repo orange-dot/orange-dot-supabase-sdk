@@ -208,7 +208,7 @@ public sealed class LifecycleTransitionTests
             DateTimeOffset.Parse("2026-04-08T10:00:00Z")));
 
         Assert.DoesNotContain("Authorization", capturedChildren.DynamicAuthHeaders.Build().Keys);
-        Assert.Null(ReadPrivateStringMember(capturedChildren.Realtime, "AccessToken"));
+        Assert.Equal(string.Empty, ReadPrivateStringMember(capturedChildren.Realtime, "AccessToken"));
     }
 
     [Fact]

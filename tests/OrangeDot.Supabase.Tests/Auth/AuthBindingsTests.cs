@@ -63,6 +63,11 @@ public sealed class AuthBindingsTests
         observer.Publish(new AuthState.SignedOut(2));
 
         Assert.Empty(realtime.Subscriptions);
+        Assert.Equal(string.Empty, ReadPrivateStringMember(realtime, "AccessToken"));
+
+        var postSignOutChannel = realtime.Channel("after-signout");
+
+        Assert.False(postSignOutChannel.Options.Parameters!.ContainsKey("user_token"));
     }
 
     [Fact]
@@ -133,7 +138,6 @@ public sealed class AuthBindingsTests
         Assert.Equal("Bearer access-token", dynamicHeaders.Build()["Authorization"]);
 
         binding.Dispose();
-        dynamicHeaders.ClearAccessToken();
         Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
 
         observer.Publish(new AuthState.Authenticated(
@@ -143,6 +147,34 @@ public sealed class AuthBindingsTests
             DateTimeOffset.Parse("2026-04-07T10:10:00Z")));
 
         Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
+    }
+
+    [Fact]
+    public void Realtime_binding_dispose_clears_token_and_existing_channels()
+    {
+        var observer = new AuthStateObserver();
+        observer.Publish(new AuthState.Authenticated(
+            1,
+            "access-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-07T10:00:00Z")));
+
+        var realtime = new global::Supabase.Realtime.Client("wss://abc.supabase.co/realtime/v1");
+        SetSocket(realtime, new global::Supabase.Realtime.RealtimeSocket(
+            "wss://abc.supabase.co/realtime/v1",
+            new global::Supabase.Realtime.ClientOptions()));
+
+        var binding = new RealtimeTokenBinding(observer, realtime, NullLogger<RealtimeTokenBinding>.Instance);
+        _ = realtime.Channel("existing");
+
+        binding.Dispose();
+
+        Assert.Empty(realtime.Subscriptions);
+        Assert.Equal(string.Empty, ReadPrivateStringMember(realtime, "AccessToken"));
+
+        var afterDisposeChannel = realtime.Channel("after-dispose");
+
+        Assert.False(afterDisposeChannel.Options.Parameters!.ContainsKey("user_token"));
     }
 
     private static void SetSocket(global::Supabase.Realtime.Client client, global::Supabase.Realtime.RealtimeSocket socket)

@@ -109,6 +109,11 @@ internal sealed class SupabaseStartupService : IHostedService
             _stopping = true;
             _client?.Dispose();
             _client = null;
+
+            if (!_shell.Ready.IsCompleted)
+            {
+                _shell.SetInitializationCanceled(cancellationToken);
+            }
         }
 
         return Task.CompletedTask;

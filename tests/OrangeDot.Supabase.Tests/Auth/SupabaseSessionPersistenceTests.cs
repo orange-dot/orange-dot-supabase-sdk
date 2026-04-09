@@ -90,6 +90,32 @@ public sealed class SupabaseSessionPersistenceTests
         Assert.DoesNotContain("Authorization", functions.GetHeaders!().Keys);
     }
 
+    [Fact]
+    public async Task Disposing_client_clears_auth_from_captured_http_children()
+    {
+        var store = new InMemorySessionStore(CreateSession("restored-access", "restored-refresh", 1800));
+        var configured = SupabaseClient.Configure(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "anon-key",
+            SessionStore = store
+        });
+
+        using var client = await (await configured.LoadPersistedSessionAsync()).InitializeAsync();
+        var auth = Assert.IsAssignableFrom<global::Supabase.Gotrue.Client>(client.Auth);
+        var postgrest = Assert.IsType<global::Supabase.Postgrest.Client>(client.Postgrest);
+        var storage = Assert.IsType<global::Supabase.Storage.Client>(client.Storage);
+        var functions = Assert.IsType<global::Supabase.Functions.Client>(client.Functions);
+
+        client.Dispose();
+
+        Assert.DoesNotContain("Authorization", auth.GetHeaders!().Keys);
+        Assert.DoesNotContain("Authorization", postgrest.GetHeaders!().Keys);
+        Assert.Equal("Bearer anon-key", storage.Headers["Authorization"]);
+        Assert.Equal("anon-key", storage.Headers["apikey"]);
+        Assert.DoesNotContain("Authorization", functions.GetHeaders!().Keys);
+    }
+
     private static global::Supabase.Gotrue.Session CreateSession(string accessToken, string refreshToken, long expiresIn)
     {
         return new global::Supabase.Gotrue.Session
