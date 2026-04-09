@@ -12,6 +12,7 @@ public sealed class SupabaseClient : ISupabaseClient
     private readonly GotrueAuthStateBridge _authStateBridge;
     private readonly HeaderAuthBinding _headerAuthBinding;
     private readonly RealtimeTokenBinding _realtimeTokenBinding;
+    private readonly GotrueAutoRefreshCoordinator _autoRefreshCoordinator;
     private readonly SupabaseTableRealtimeClient _tableRealtime;
     private readonly string _url;
     private readonly string _anonKey;
@@ -23,12 +24,14 @@ public sealed class SupabaseClient : ISupabaseClient
         SupabaseChildClients children,
         GotrueAuthStateBridge authStateBridge,
         HeaderAuthBinding headerAuthBinding,
-        RealtimeTokenBinding realtimeTokenBinding)
+        RealtimeTokenBinding realtimeTokenBinding,
+        GotrueAutoRefreshCoordinator autoRefreshCoordinator)
     {
         _children = children;
         _authStateBridge = authStateBridge;
         _headerAuthBinding = headerAuthBinding;
         _realtimeTokenBinding = realtimeTokenBinding;
+        _autoRefreshCoordinator = autoRefreshCoordinator;
         _tableRealtime = new SupabaseTableRealtimeClient(children.Realtime);
 
         _url = snapshot.Url;
@@ -135,6 +138,7 @@ public sealed class SupabaseClient : ISupabaseClient
 
         _headerAuthBinding.Dispose();
         _realtimeTokenBinding.Dispose();
+        _autoRefreshCoordinator.Dispose();
         _authStateBridge.Dispose();
         _tableRealtime.Dispose();
         _children.Auth.Shutdown();

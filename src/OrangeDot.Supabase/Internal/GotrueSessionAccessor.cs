@@ -12,6 +12,8 @@ internal static class GotrueSessionAccessor
         ArgumentNullException.ThrowIfNull(auth);
         ArgumentNullException.ThrowIfNull(session);
 
+        // Upstream keeps CurrentSession privately settable, so persisted-session restoration
+        // must probe the concrete client shape and fail fast when a dependency bump changes it.
         var property = auth.GetType().GetProperty(
             nameof(global::Supabase.Gotrue.Client.CurrentSession),
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -34,7 +36,7 @@ internal static class GotrueSessionAccessor
         if (backingField is null)
         {
             throw new InvalidOperationException(
-                $"Unable to restore a persisted Supabase auth session because {auth.GetType().FullName} does not expose a writable CurrentSession property.");
+                $"Unable to restore a persisted Supabase auth session because {auth.GetType().FullName} no longer exposes a writable {nameof(global::Supabase.Gotrue.Client.CurrentSession)} property or its expected backing field. Revisit the pinned Gotrue integration.");
         }
 
         backingField.SetValue(auth, session);

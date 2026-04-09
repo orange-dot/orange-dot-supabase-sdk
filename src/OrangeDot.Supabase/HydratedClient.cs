@@ -12,7 +12,7 @@ public sealed class HydratedClient : IDisposable
     private readonly LifecycleSnapshot _snapshot;
     private readonly SupabaseRuntimeContext _runtimeContext;
     private readonly global::Supabase.Gotrue.Session? _restoredSession;
-    private bool _disposed;
+    private int _disposed;
 
     // Test-only seam for deterministic cancellation cleanup coverage.
     internal Func<SupabaseChildClients, GotrueAuthStateBridge, HeaderAuthBinding, RealtimeTokenBinding, Task>? BeforeFinalizeTestHookAsync { private get; set; }
@@ -38,6 +38,7 @@ public sealed class HydratedClient : IDisposable
         GotrueAuthStateBridge? authBridge = null;
         HeaderAuthBinding? headerBinding = null;
         RealtimeTokenBinding? realtimeBinding = null;
+        GotrueAutoRefreshCoordinator? autoRefresh = null;
 
         try
         {
@@ -76,39 +77,46 @@ public sealed class HydratedClient : IDisposable
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            autoRefresh = new GotrueAutoRefreshCoordinator(
+                _runtimeContext.AuthStateObserver,
+                children.Auth,
+                loggerFactory.CreateLogger<GotrueAutoRefreshCoordinator>());
 
             return new SupabaseClient(
                 _snapshot,
                 children,
                 authBridge,
                 headerBinding,
-                realtimeBinding);
+                realtimeBinding,
+                autoRefresh);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            CleanupPartialInitialization(children, authBridge, headerBinding, realtimeBinding);
+            CleanupPartialInitialization(children, authBridge, headerBinding, realtimeBinding, autoRefresh);
             throw;
         }
     }
 
     public void Dispose()
     {
-        _disposed = true;
+        Interlocked.Exchange(ref _disposed, 1);
     }
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
     }
 
     private static void CleanupPartialInitialization(
         SupabaseChildClients? children,
         GotrueAuthStateBridge? authBridge,
         HeaderAuthBinding? headerBinding,
-        RealtimeTokenBinding? realtimeBinding)
+        RealtimeTokenBinding? realtimeBinding,
+        GotrueAutoRefreshCoordinator? autoRefresh)
     {
         TryCleanup(() => headerBinding?.Dispose());
         TryCleanup(() => realtimeBinding?.Dispose());
+        TryCleanup(() => autoRefresh?.Dispose());
         TryCleanup(() => authBridge?.Dispose());
         TryCleanup(() => children?.Auth.Shutdown());
         TryCleanup(() => children?.Realtime.Disconnect());
