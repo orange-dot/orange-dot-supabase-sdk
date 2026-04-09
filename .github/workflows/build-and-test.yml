@@ -73,7 +73,12 @@ jobs:
           global-json-file: global.json
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
+        with:
+          version: 2.84.2
+
+      - name: Supabase CLI Version
+        run: supabase --version
 
       - name: Start Supabase
         run: supabase start
