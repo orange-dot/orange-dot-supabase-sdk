@@ -4,11 +4,11 @@
 
 Targets: `net8.0`, `net10.0`
 
-`orange-dot-supabase-sdk` is a source-first reimplementation of the orchestration layer of the Supabase C# SDK. It keeps the upstream child modules pinned and unchanged, and focuses on the top-level client surface where lifecycle, DI, readiness, auth propagation, URL derivation, observability, and table convenience are defined.
+`orange-dot-supabase-sdk` is a source-first reimplementation of the orchestration layer of the Supabase C# SDK. It keeps the upstream child modules pinned and unchanged, and focuses on the top-level client surface where lifecycle, DI, readiness, auth propagation, URL derivation, observability, table convenience, and runnable usage samples are defined.
 
-Today the repo includes a working stateful client, a DI/hosted construction path, a stateless client, a realtime-aware `Table<T>()` wrapper, typed orchestration-layer exceptions, unit-test coverage, and an opt-in local-Supabase integration test slice around the composition boundary. It does not yet ship as a NuGet package and does not yet include sample apps.
+Today the repo includes a working stateful client, a DI/hosted construction path, a stateless client, a realtime-aware `Table<T>()` wrapper, a minimal ASP.NET Core server sample, typed orchestration-layer exceptions, unit-test coverage, and an opt-in local-Supabase integration test slice around the composition boundary. It does not yet ship as a NuGet package.
 
-> Current status: usable from source, honest about its prototype scope, with sample-app slices still deferred.
+> Current status: usable from source, honest about its prototype scope, with an initial server-side sample included.
 
 ## Why this repo exists
 
@@ -25,6 +25,7 @@ See [docs/architecture-contrasts.md](docs/architecture-contrasts.md) for the ful
 - `ISupabaseClient` plus `services.AddSupabaseHosted(...)` and readiness gating through `Task Ready`
 - `ISupabaseStatelessClientFactory` plus `services.AddSupabaseServer(...)` for server-side fresh stateless clients
 - `SupabaseStatelessClient` for one-shot and non-DI usage
+- `samples/ServerMinimalApi/` as a runnable ASP.NET Core sample for the server-side DI path
 - `Table<T>()` and `ISupabaseTable<T>` for PostgREST query chaining plus realtime `.On(...)`
 - `IAuthStateObserver` and auth bindings for header-based clients and realtime
 - `SupabaseUrls` derivation for hosted and self-hosted deployments
@@ -210,11 +211,12 @@ var channel = await client.Table<Todo>().On(
 - [Prototype scope / decision log](docs/decision-log.md)
 - [Project positioning](docs/project-positioning.md)
 - [Verification artifacts](spec/README.md)
+- [Server sample](samples/ServerMinimalApi/README.md)
 
 ## Current Limitations
 
 - Source-first repo only; no NuGet publishing flow yet
-- No sample applications in the repo yet
+- Sample application coverage is still minimal; only the server-side Minimal API sample is included so far
 - Child modules under `modules/` are pinned upstream dependencies and are not patched locally
 - Stateless server factory calls currently allocate fresh underlying HTTP clients; `IHttpClientFactory` integration is future work
 - Storage server-path behavior still depends on upstream module internals around helper initialization order
