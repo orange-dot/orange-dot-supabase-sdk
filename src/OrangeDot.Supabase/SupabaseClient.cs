@@ -117,6 +117,15 @@ public sealed class SupabaseClient : ISupabaseClient
         }
     }
 
+    internal ISupabaseTableRealtimeClient TableRealtime
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _tableRealtime;
+        }
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
