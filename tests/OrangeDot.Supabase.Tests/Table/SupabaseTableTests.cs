@@ -594,8 +594,25 @@ public sealed class SupabaseTableTests
             RemovedTopics.Add(channel.Topic);
         }
 
+        public IDisposable SubscribeToSocketState(Action<Constants.SocketState> listener)
+        {
+            return new NoopDisposable();
+        }
+
+        public Task ForceReconnectAsync()
+        {
+            return Task.CompletedTask;
+        }
+
         public void Dispose()
         {
+        }
+
+        private sealed class NoopDisposable : IDisposable
+        {
+            public void Dispose()
+            {
+            }
         }
     }
 
