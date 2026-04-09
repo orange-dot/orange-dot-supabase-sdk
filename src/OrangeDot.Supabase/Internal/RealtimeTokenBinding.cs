@@ -35,6 +35,7 @@ internal sealed class RealtimeTokenBinding : IDisposable
         }
 
         _subscription.Dispose();
+        ClearProjection();
     }
 
     private void Apply(AuthState state)
@@ -58,20 +59,27 @@ internal sealed class RealtimeTokenBinding : IDisposable
             case AuthState.Anonymous:
             case AuthState.Faulted:
             {
-                var channels = _realtime.Subscriptions.Values.ToArray();
-
-                foreach (var channel in channels)
-                {
-                    _realtime.Remove(channel);
-                }
-
-                _logger.LogInformation(
-                    "Cleared {ChannelCount} realtime channels after auth projection reset.",
-                    channels.Length);
+                ClearProjection();
                 break;
             }
             default:
                 throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown auth state.");
         }
+    }
+
+    private void ClearProjection()
+    {
+        _realtime.SetAuth(string.Empty);
+
+        var channels = _realtime.Subscriptions.Values.ToArray();
+
+        foreach (var channel in channels)
+        {
+            _realtime.Remove(channel);
+        }
+
+        _logger.LogInformation(
+            "Cleared realtime auth projection and removed {ChannelCount} realtime channels.",
+            channels.Length);
     }
 }

@@ -174,7 +174,7 @@ public sealed class SupabaseHostedStartupTests
     }
 
     [Fact]
-    public async Task StopAsync_before_StartAsync_prevents_ready_publication()
+    public async Task StopAsync_before_StartAsync_cancels_ready_and_prevents_ready_publication()
     {
         var shell = new SupabaseClientShell(NullLogger<SupabaseClientShell>.Instance);
         var service = new SupabaseStartupService(
@@ -186,12 +186,15 @@ public sealed class SupabaseHostedStartupTests
             shell,
             NullLogger<SupabaseStartupService>.Instance,
             NullLoggerFactory.Instance,
-            new OrangeDot.Supabase.Auth.AuthStateObserver());
+                new OrangeDot.Supabase.Auth.AuthStateObserver());
 
         await service.StopAsync(CancellationToken.None);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await shell.Ready);
         await service.StartAsync(CancellationToken.None);
 
-        Assert.False(shell.Ready.IsCompleted);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await shell.Ready);
+        Assert.True(shell.Ready.IsCanceled);
+        Assert.Throws<InvalidOperationException>(() => _ = shell.Auth);
     }
 
     [Fact]
@@ -218,7 +221,7 @@ public sealed class SupabaseHostedStartupTests
     }
 
     [Fact]
-    public async Task Concurrent_StopAsync_during_pre_publish_window_prevents_ready_publication()
+    public async Task Concurrent_StopAsync_during_pre_publish_window_cancels_ready_and_prevents_publication()
     {
         var shell = new SupabaseClientShell(NullLogger<SupabaseClientShell>.Instance);
         var service = new SupabaseStartupService(
@@ -246,12 +249,13 @@ public sealed class SupabaseHostedStartupTests
         Assert.False(shell.Ready.IsCompleted);
 
         await service.StopAsync(CancellationToken.None);
-        Assert.False(shell.Ready.IsCompleted);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await shell.Ready);
+        Assert.True(shell.Ready.IsCanceled);
 
         resumeStart.TrySetResult();
         await startTask.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.False(shell.Ready.IsCompleted);
+        Assert.True(shell.Ready.IsCanceled);
         Assert.Throws<InvalidOperationException>(() => _ = shell.Auth);
     }
 

@@ -34,6 +34,7 @@ internal sealed class HeaderAuthBinding : IDisposable
         }
 
         _subscription.Dispose();
+        _dynamicAuthHeaders.ClearAccessToken();
     }
 
     private void Apply(AuthState state)
