@@ -10,17 +10,17 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddSupabase(
+    public static IServiceCollection AddSupabaseHosted(
         this IServiceCollection services,
         Action<SupabaseOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        return services.AddSupabase((_, options) => configure(options));
+        return services.AddSupabaseHosted((_, options) => configure(options));
     }
 
-    public static IServiceCollection AddSupabase(
+    public static IServiceCollection AddSupabaseHosted(
         this IServiceCollection services,
         Action<IServiceProvider, SupabaseOptions> configure)
     {
@@ -39,6 +39,35 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<SupabaseClientShell>();
         services.TryAddSingleton<ISupabaseClient>(serviceProvider => serviceProvider.GetRequiredService<SupabaseClientShell>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, SupabaseStartupService>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddSupabaseServer(
+        this IServiceCollection services,
+        Action<SupabaseServerOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        return services.AddSupabaseServer((_, options) => configure(options));
+    }
+
+    public static IServiceCollection AddSupabaseServer(
+        this IServiceCollection services,
+        Action<IServiceProvider, SupabaseServerOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        services.TryAddSingleton<IOptions<SupabaseServerOptions>>(serviceProvider =>
+        {
+            var options = new SupabaseServerOptions();
+            configure(serviceProvider, options);
+            return Microsoft.Extensions.Options.Options.Create(options);
+        });
+
+        services.TryAddSingleton<ISupabaseStatelessClientFactory, SupabaseStatelessClientFactory>();
 
         return services;
     }

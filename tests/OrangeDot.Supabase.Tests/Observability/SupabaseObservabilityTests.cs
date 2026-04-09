@@ -29,7 +29,7 @@ public sealed class SupabaseObservabilityTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddSupabase(options =>
+                services.AddSupabaseHosted(options =>
                 {
                     options.Url = "https://abc.supabase.co";
                     options.AnonKey = "anon-key";

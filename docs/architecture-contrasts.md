@@ -226,7 +226,7 @@ These are real contrasts with concrete backing, but were left out of the top-thr
 
 **Community pattern.** `Client` has two constructors: one that accepts pre-built child clients (DI scenario), one that accepts URL+key and constructs children internally.
 **Problem.** Runtime branching. If a caller uses the DI constructor without supplying all children, behavior is silent or exceptional at unpredictable times.
-**Alternative.** Single explicit lifecycle entry point `SupabaseClient.Configure(options)`, plus `IServiceCollection.AddSupabase(...)` for host integration. No direct constructor access.
+**Alternative.** Single explicit lifecycle entry point `SupabaseClient.Configure(options)`, plus `IServiceCollection.AddSupabaseHosted(...)` for host integration. No direct constructor access.
 **Why better.** Uniform construction semantics. DI-native by default.
 **Why secondary.** Partially addressed by the community version today. Not a strong contrast to carry independently.
 

@@ -22,7 +22,8 @@ See [docs/architecture-contrasts.md](docs/architecture-contrasts.md) for the ful
 ## What's implemented
 
 - `SupabaseClient` with typed lifecycle transitions and child-client accessors: `Auth`, `Postgrest`, `Realtime`, `Storage`, `Functions`
-- `ISupabaseClient` plus `services.AddSupabase(...)` and readiness gating through `Task Ready`
+- `ISupabaseClient` plus `services.AddSupabaseHosted(...)` and readiness gating through `Task Ready`
+- `ISupabaseStatelessClientFactory` plus `services.AddSupabaseServer(...)` for server-side fresh stateless clients
 - `SupabaseStatelessClient` for one-shot and non-DI usage
 - `Table<T>()` and `ISupabaseTable<T>` for PostgREST query chaining plus realtime `.On(...)`
 - `IAuthStateObserver` and auth bindings for header-based clients and realtime
@@ -87,7 +88,7 @@ using OrangeDot.Supabase;
 
 var services = new ServiceCollection();
 
-services.AddSupabase(options =>
+services.AddSupabaseHosted(options =>
 {
     options.Url = "https://abc.supabase.co";
     options.AnonKey = "your-anon-key";
@@ -131,6 +132,53 @@ var session = await client.Auth.SignIn(
 var todos = await client.Postgrest.Table<Todo>().Get();
 ```
 
+## Server / Stateless Factory
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using OrangeDot.Supabase;
+
+var services = new ServiceCollection();
+
+services.AddSupabaseServer(options =>
+{
+    options.Url = "https://abc.supabase.co";
+    options.AnonKey = "your-anon-key";
+    options.ServiceRoleKey = "your-service-role-key";
+});
+```
+
+```csharp
+public sealed class TodoQueryHandler
+{
+    private readonly ISupabaseStatelessClientFactory _clients;
+
+    public TodoQueryHandler(ISupabaseStatelessClientFactory clients)
+    {
+        _clients = clients;
+    }
+
+    public Task<object> GetPublicTodosAsync()
+    {
+        var client = _clients.CreateAnon();
+        return client.Postgrest.Table<Todo>().Get();
+    }
+
+    public Task<object> GetUserTodosAsync(string accessToken)
+    {
+        var client = _clients.CreateForUser(accessToken);
+        return client.Postgrest.Table<Todo>().Get();
+    }
+}
+```
+
+Server factory notes:
+- each factory call creates fresh child clients and fresh underlying HTTP clients
+- callers own delegated-token lifecycle and expiry handling
+- `AuthOptions` stays project-level; delegated identity is carried by the factory-created child-client headers, not by `AuthOptions`
+- the current server path is correct for isolated per-operation usage, but not yet optimized for very high client churn
+- Storage still inherits upstream static-helper constraints under concurrent mixed-option initialization; PR21 does not change that module behavior
+
 ## Table Wrapper
 
 `Table<T>()` keeps PostgREST query chaining on the wrapper and adds table-scoped realtime subscriptions.
@@ -158,3 +206,5 @@ var channel = await client.Table<Todo>().On(
 - Source-first repo only; no NuGet publishing flow yet
 - No sample applications in the repo yet
 - Child modules under `modules/` are pinned upstream dependencies and are not patched locally
+- Stateless server factory calls currently allocate fresh underlying HTTP clients; `IHttpClientFactory` integration is future work
+- Storage server-path behavior still depends on upstream module internals around helper initialization order

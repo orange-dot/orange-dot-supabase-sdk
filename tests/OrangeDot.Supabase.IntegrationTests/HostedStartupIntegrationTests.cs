@@ -7,7 +7,7 @@ namespace OrangeDot.Supabase.IntegrationTests;
 public sealed class HostedStartupIntegrationTests
 {
     [LocalSupabaseFact]
-    public async Task AddSupabase_hosted_startup_initializes_ready_client_against_local_stack()
+    public async Task AddSupabaseHosted_hosted_startup_initializes_ready_client_against_local_stack()
     {
         var settings = IntegrationTestEnvironment.LoadSettings();
 
@@ -16,7 +16,7 @@ public sealed class HostedStartupIntegrationTests
         using var host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
-                services.AddSupabase(options =>
+                services.AddSupabaseHosted(options =>
                 {
                     options.Url = settings.Url;
                     options.AnonKey = settings.AnonKey;

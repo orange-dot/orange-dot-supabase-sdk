@@ -3,7 +3,7 @@ using OrangeDot.Supabase.Urls;
 
 namespace OrangeDot.Supabase;
 
-public sealed class SupabaseStatelessClient
+public sealed class SupabaseStatelessClient : ISupabaseStatelessClient
 {
     internal SupabaseStatelessClient(
         LifecycleSnapshot snapshot,
@@ -42,14 +42,22 @@ public sealed class SupabaseStatelessClient
     public static SupabaseStatelessClient Create(SupabaseOptions options)
     {
         var snapshot = SupabaseConfigurationSnapshotFactory.Create(options, nameof(Create));
+
+        return Create(snapshot);
+    }
+
+    internal static SupabaseStatelessClient Create(LifecycleSnapshot snapshot, string? bearerToken = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
         var factory = new SupabaseStatelessChildClientFactory();
 
         return new SupabaseStatelessClient(
             snapshot,
             factory.CreateAuth(),
             factory.CreateAuthOptions(snapshot),
-            factory.CreatePostgrest(snapshot),
-            factory.CreateStorage(snapshot),
-            factory.CreateFunctions(snapshot));
+            factory.CreatePostgrest(snapshot, bearerToken),
+            factory.CreateStorage(snapshot, bearerToken),
+            factory.CreateFunctions(snapshot, bearerToken));
     }
 }
