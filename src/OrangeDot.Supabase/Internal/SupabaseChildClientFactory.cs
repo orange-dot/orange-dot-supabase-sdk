@@ -32,6 +32,7 @@ internal sealed class SupabaseChildClientFactory
         {
             GetHeaders = dynamicAuthHeaders.Build
         };
+        DisableBuiltInAutoRefresh(auth);
 
         cancellationToken.ThrowIfCancellationRequested();
         var postgrest = new global::Supabase.Postgrest.Client(
@@ -66,6 +67,18 @@ internal sealed class SupabaseChildClientFactory
         };
 
         return new SupabaseChildClients(dynamicAuthHeaders, auth, postgrest, realtime, storage, functions);
+    }
+
+    private static void DisableBuiltInAutoRefresh(global::Supabase.Gotrue.Client auth)
+    {
+        if (auth.TokenRefresh is null)
+        {
+            return;
+        }
+
+        // Stateful clients keep Gotrue's refresh semantics, but the wrapper owns scheduling so
+        // refreshes run through PersistedGotrueClient's async session-store path.
+        auth.RemoveStateChangedListener(auth.TokenRefresh.ManageAutoRefresh);
     }
 
     internal static Dictionary<string, string> CreateStaticHeaders(string apiKey)

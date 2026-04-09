@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using OrangeDot.Supabase.Internal;
 using OrangeDot.Supabase.Urls;
@@ -19,6 +20,11 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.Equal(urls.AuthUrl, children.Auth.Options.Url);
         Assert.Equal("anon-key", children.Auth.Options.Headers["apikey"]);
         Assert.DoesNotContain("Authorization", children.Auth.GetHeaders!().Keys);
+        Assert.NotNull(children.Auth.TokenRefresh);
+        Assert.DoesNotContain(
+            ReadAuthListeners(children.Auth),
+            listener => string.Equals(listener.Method.Name, nameof(global::Supabase.Gotrue.TokenRefresh.ManageAutoRefresh), StringComparison.Ordinal) &&
+                        ReferenceEquals(listener.Target, children.Auth.TokenRefresh));
 
         Assert.Equal(urls.RestUrl, children.Postgrest.BaseUrl);
         Assert.Empty(children.Postgrest.Options.Headers);
@@ -118,5 +124,16 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.NotNull(property);
 
         return Assert.IsType<string>(property!.GetValue(instance));
+    }
+
+    private static Delegate[] ReadAuthListeners(global::Supabase.Gotrue.Client auth)
+    {
+        var field = typeof(global::Supabase.Gotrue.Client).GetField(
+            "_authEventHandlers",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(field);
+        var listeners = Assert.IsAssignableFrom<System.Collections.IEnumerable>(field!.GetValue(auth));
+        return listeners.Cast<Delegate>().ToArray();
     }
 }

@@ -212,6 +212,8 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
     {
         ArgumentNullException.ThrowIfNull(socket);
 
+        // The pinned realtime dependency does not expose reconnect on the socket interface, so
+        // reconnect support is intentionally reflective and should be reevaluated on upgrades.
         var socketType = socket.GetType();
         var reconnectMethod = FindReconnectMethod(socketType);
 
@@ -230,11 +232,11 @@ internal sealed class SupabaseTableRealtimeClient : ISupabaseTableRealtimeClient
         var connectionField = socketType.GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic);
         var connection = connectionField?.GetValue(socket)
             ?? throw new InvalidOperationException(
-                $"Cannot force reconnect because {socketType.FullName} does not expose a reconnect-capable connection.");
+                $"Cannot force reconnect because {socketType.FullName} no longer exposes a reconnect-capable socket API or the expected _connection field. Revisit the pinned realtime integration.");
 
         var connectionReconnectMethod = FindReconnectMethod(connection.GetType())
             ?? throw new InvalidOperationException(
-                $"Cannot force reconnect because {connection.GetType().FullName} does not expose a reconnect method.");
+                $"Cannot force reconnect because {connection.GetType().FullName} no longer exposes a reconnect method. Revisit the pinned realtime integration.");
 
         var connectionReconnectResult = InvokeReconnectMethod(connection, connectionReconnectMethod);
 

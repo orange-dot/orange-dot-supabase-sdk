@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using OrangeDot.Supabase.Errors;
 using OrangeDot.Supabase.Internal;
@@ -9,7 +10,7 @@ public sealed class ConfiguredClient : IDisposable
 {
     private readonly LifecycleSnapshot _snapshot;
     private readonly SupabaseRuntimeContext _runtimeContext;
-    private bool _disposed;
+    private int _disposed;
 
     internal ConfiguredClient(LifecycleSnapshot snapshot, SupabaseRuntimeContext runtimeContext)
     {
@@ -52,11 +53,11 @@ public sealed class ConfiguredClient : IDisposable
 
     public void Dispose()
     {
-        _disposed = true;
+        Interlocked.Exchange(ref _disposed, 1);
     }
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
     }
 }

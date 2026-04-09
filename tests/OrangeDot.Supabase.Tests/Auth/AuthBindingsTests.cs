@@ -71,6 +71,35 @@ public sealed class AuthBindingsTests
     }
 
     [Fact]
+    public void Realtime_binding_clears_token_and_channels_for_faulted_state()
+    {
+        var observer = new AuthStateObserver();
+        observer.Publish(new AuthState.Authenticated(
+            1,
+            "access-token",
+            "refresh-token",
+            DateTimeOffset.Parse("2026-04-07T10:00:00Z")));
+
+        var realtime = new global::Supabase.Realtime.Client("wss://abc.supabase.co/realtime/v1");
+        SetSocket(realtime, new global::Supabase.Realtime.RealtimeSocket(
+            "wss://abc.supabase.co/realtime/v1",
+            new global::Supabase.Realtime.ClientOptions()));
+
+        using var binding = new RealtimeTokenBinding(observer, realtime, NullLogger<RealtimeTokenBinding>.Instance);
+        _ = realtime.Channel("first");
+        _ = realtime.Channel("second");
+
+        observer.Publish(new AuthState.Faulted(1, 2, "refresh failed"));
+
+        Assert.Empty(realtime.Subscriptions);
+        Assert.Equal(string.Empty, ReadPrivateStringMember(realtime, "AccessToken"));
+
+        var postFaultedChannel = realtime.Channel("after-faulted");
+
+        Assert.False(postFaultedChannel.Options.Parameters!.ContainsKey("user_token"));
+    }
+
+    [Fact]
     public void Header_binding_clears_headers_for_faulted_state_and_disposal_stops_updates()
     {
         var observer = new AuthStateObserver();
