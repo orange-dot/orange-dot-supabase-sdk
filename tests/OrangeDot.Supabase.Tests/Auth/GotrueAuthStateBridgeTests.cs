@@ -4,8 +4,11 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using OrangeDot.Supabase.Auth;
+using OrangeDot.Supabase.Errors;
 using OrangeDot.Supabase.Internal;
 using GotrueAuthState = global::Supabase.Gotrue.Constants.AuthState;
 
@@ -175,6 +178,80 @@ public sealed class GotrueAuthStateBridgeTests
         Assert.Equal(initialCount, GetAuthListenerCount(auth));
     }
 
+    [Fact]
+    public void Bridge_persists_latest_session_and_clears_store_on_sign_out()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        var store = new RecordingSessionStore();
+        using var bridge = new GotrueAuthStateBridge(auth, observer, NullLogger<GotrueAuthStateBridge>.Instance, metrics: null, store);
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
+
+        Assert.NotNull(store.CurrentSession);
+        Assert.Equal("signed-in-token", store.CurrentSession!.AccessToken);
+        Assert.Equal(1, store.PersistCalls);
+        Assert.Equal(0, store.ClearCalls);
+
+        SetCurrentSession(auth, CreateSession("refreshed-token", "refresh-token-2", 3600));
+        auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
+
+        Assert.NotNull(store.CurrentSession);
+        Assert.Equal("refreshed-token", store.CurrentSession!.AccessToken);
+        Assert.Equal(2, store.PersistCalls);
+        Assert.Equal(0, store.ClearCalls);
+
+        auth.NotifyAuthStateChange(GotrueAuthState.SignedOut);
+
+        Assert.Null(store.CurrentSession);
+        Assert.Equal(1, store.ClearCalls);
+    }
+
+    [Fact]
+    public void Bridge_session_store_failure_does_not_publish_signed_in_state_when_gotrue_swallows_listener_exception()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        using var bridge = new GotrueAuthStateBridge(
+            auth,
+            observer,
+            NullLogger<GotrueAuthStateBridge>.Instance,
+            metrics: null,
+            new ThrowingSessionStore(persistException: new InvalidOperationException("persist failed")));
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+
+        var exception = Record.Exception(() => auth.NotifyAuthStateChange(GotrueAuthState.SignedIn));
+
+        Assert.Null(exception);
+        Assert.IsType<AuthState.Anonymous>(observer.Current);
+    }
+
+    [Fact]
+    public void Bridge_records_binding_failure_metric_when_session_store_persistence_fails()
+    {
+        var auth = CreateAuthClient();
+        var observer = new AuthStateObserver();
+        using var meterFactory = new TestMeterFactory();
+        using var collector = new LongMeasurementCollector("Supabase.Client");
+        using var bridge = new GotrueAuthStateBridge(
+            auth,
+            observer,
+            NullLogger<GotrueAuthStateBridge>.Instance,
+            new OrangeDot.Supabase.Observability.SupabaseMetrics(meterFactory),
+            new ThrowingSessionStore(persistException: new InvalidOperationException("persist failed")));
+
+        SetCurrentSession(auth, CreateSession("signed-in-token", "refresh-token", 1800));
+        var exception = Record.Exception(() => auth.NotifyAuthStateChange(GotrueAuthState.SignedIn));
+
+        Assert.Null(exception);
+        Assert.Contains(
+            collector.Measurements,
+            measurement => measurement.Name == "supabase.auth.binding_failures.total" &&
+                           Equals(measurement.Tags["stage"], "session_store"));
+    }
+
     private static global::Supabase.Gotrue.Client CreateAuthClient()
     {
         return new global::Supabase.Gotrue.Client(new global::Supabase.Gotrue.ClientOptions
@@ -275,4 +352,75 @@ public sealed class GotrueAuthStateBridgeTests
     }
 
     private sealed record Measurement(string Name, long Value, IReadOnlyDictionary<string, object?> Tags);
+
+    private class RecordingSessionStore : ISupabaseSessionStore
+    {
+        public global::Supabase.Gotrue.Session? CurrentSession { get; private set; }
+
+        public int PersistCalls { get; private set; }
+
+        public int ClearCalls { get; private set; }
+
+        public virtual ValueTask PersistAsync(global::Supabase.Gotrue.Session session, CancellationToken cancellationToken = default)
+        {
+            PersistCalls++;
+            CurrentSession = session;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<global::Supabase.Gotrue.Session?> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(CurrentSession);
+        }
+
+        public ValueTask ClearAsync(CancellationToken cancellationToken = default)
+        {
+            ClearCalls++;
+            CurrentSession = null;
+            return ValueTask.CompletedTask;
+        }
+
+        protected void SetCurrentSession(global::Supabase.Gotrue.Session? session)
+        {
+            CurrentSession = session;
+        }
+    }
+
+    private sealed class ThrowingSessionStore : ISupabaseSessionStore
+    {
+        private readonly Exception? _persistException;
+        private readonly Exception? _clearException;
+
+        public ThrowingSessionStore(Exception? persistException = null, Exception? clearException = null)
+        {
+            _persistException = persistException;
+            _clearException = clearException;
+        }
+
+        public ValueTask PersistAsync(global::Supabase.Gotrue.Session session, CancellationToken cancellationToken = default)
+        {
+            if (_persistException is not null)
+            {
+                throw _persistException;
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<global::Supabase.Gotrue.Session?> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<global::Supabase.Gotrue.Session?>(null);
+        }
+
+        public ValueTask ClearAsync(CancellationToken cancellationToken = default)
+        {
+            if (_clearException is not null)
+            {
+                throw _clearException;
+            }
+
+            return ValueTask.CompletedTask;
+        }
+    }
+
 }

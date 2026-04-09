@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using OrangeDot.Supabase.Auth;
+using OrangeDot.Supabase.Errors;
 using OrangeDot.Supabase.Observability;
 using GotrueAuthState = global::Supabase.Gotrue.Constants.AuthState;
 using OrangeDotAuthState = OrangeDot.Supabase.Auth.AuthState;
@@ -16,6 +17,7 @@ internal sealed class GotrueAuthStateBridge : IDisposable
     private readonly AuthStateObserver _observer;
     private readonly ILogger<GotrueAuthStateBridge> _logger;
     private readonly SupabaseMetrics? _metrics;
+    private readonly ISupabaseSessionStore _sessionStore;
     private readonly object _gate = new();
     private long _canonicalVersion;
     private long _pendingRefreshVersion;
@@ -27,7 +29,8 @@ internal sealed class GotrueAuthStateBridge : IDisposable
         global::Supabase.Gotrue.Interfaces.IGotrueClient<global::Supabase.Gotrue.User, global::Supabase.Gotrue.Session> auth,
         AuthStateObserver observer,
         ILogger<GotrueAuthStateBridge> logger,
-        SupabaseMetrics? metrics)
+        SupabaseMetrics? metrics,
+        ISupabaseSessionStore? sessionStore = null)
     {
         ArgumentNullException.ThrowIfNull(auth);
         ArgumentNullException.ThrowIfNull(observer);
@@ -37,6 +40,7 @@ internal sealed class GotrueAuthStateBridge : IDisposable
         _observer = observer;
         _logger = logger;
         _metrics = metrics;
+        _sessionStore = sessionStore ?? NoOpSupabaseSessionStore.Instance;
 
         _auth.AddStateChangedListener(HandleAuthStateChanged);
         PublishCurrentSessionIfPresent();
@@ -67,6 +71,7 @@ internal sealed class GotrueAuthStateBridge : IDisposable
             case GotrueAuthState.SignedIn:
                 if (TryCreateSessionSnapshot(sender.CurrentSession, out var signedInSnapshot))
                 {
+                    PersistSessionOrThrow(sender.CurrentSession!, stateChanged);
                     states.Add((BuildAuthenticatedState(signedInSnapshot, advanceVersion: true), stateChanged.ToString(), false));
                 }
 
@@ -74,10 +79,12 @@ internal sealed class GotrueAuthStateBridge : IDisposable
             case GotrueAuthState.UserUpdated:
                 if (TryCreateSessionSnapshot(sender.CurrentSession, out var userUpdatedSnapshot))
                 {
+                    PersistSessionOrThrow(sender.CurrentSession!, stateChanged);
                     states.Add((BuildAuthenticatedState(userUpdatedSnapshot, advanceVersion: true), stateChanged.ToString(), false));
                 }
                 else
                 {
+                    ClearPersistedSessionOrThrow(stateChanged);
                     states.Add((BuildFaultedState("User update event did not provide a valid session."), stateChanged.ToString(), false));
                 }
 
@@ -93,16 +100,19 @@ internal sealed class GotrueAuthStateBridge : IDisposable
 
                 if (TryCreateSessionSnapshot(sender.CurrentSession, out var refreshedSnapshot))
                 {
+                    PersistSessionOrThrow(sender.CurrentSession!, stateChanged);
                     states.Add((BuildRefreshingState(refreshedSnapshot), $"{stateChanged}.begin", false));
                     states.Add((BuildAuthenticatedState(refreshedSnapshot, advanceVersion: false), stateChanged.ToString(), true));
                 }
                 else
                 {
+                    ClearPersistedSessionOrThrow(stateChanged);
                     states.Add((BuildFaultedState("Token refresh completed without a valid session."), stateChanged.ToString(), false));
                 }
 
                 break;
             case GotrueAuthState.SignedOut:
+                ClearPersistedSessionOrThrow(stateChanged);
                 states.Add((BuildSignedOutState(), stateChanged.ToString(), false));
                 break;
             case GotrueAuthState.PasswordRecovery:
@@ -154,6 +164,40 @@ internal sealed class GotrueAuthStateBridge : IDisposable
                 "Failed to publish auth state {AuthState} from Gotrue source {Source}.",
                 ToMetricState(state),
                 source);
+        }
+    }
+
+    private void PersistSessionOrThrow(global::Supabase.Gotrue.Session session, GotrueAuthState source)
+    {
+        try
+        {
+            _sessionStore.PersistAsync(session).GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            _metrics?.RecordAuthBindingFailure("session_store");
+            _logger.LogError(
+                exception,
+                "Failed to persist auth session after Gotrue source {Source}.",
+                source);
+            throw SessionStoreAuthExceptions.Create(source, persist: true, exception);
+        }
+    }
+
+    private void ClearPersistedSessionOrThrow(GotrueAuthState source)
+    {
+        try
+        {
+            _sessionStore.ClearAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            _metrics?.RecordAuthBindingFailure("session_store");
+            _logger.LogError(
+                exception,
+                "Failed to clear persisted auth session after Gotrue source {Source}.",
+                source);
+            throw SessionStoreAuthExceptions.Create(source, persist: false, exception);
         }
     }
 

@@ -162,7 +162,11 @@ public sealed class LifecycleTransitionTests
     public async Task Initialize_async_cancellation_after_partial_wiring_cleans_up_partial_runtime_graph()
     {
         var observer = new AuthStateObserver();
-        var runtimeContext = new SupabaseRuntimeContext(observer, NullLoggerFactory.Instance, MeterFactory: null);
+        var runtimeContext = new SupabaseRuntimeContext(
+            observer,
+            NullLoggerFactory.Instance,
+            MeterFactory: null,
+            NoOpSupabaseSessionStore.Instance);
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
