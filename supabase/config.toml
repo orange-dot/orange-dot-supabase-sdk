@@ -22,12 +22,18 @@ enabled = false
 enabled = true
 
 [studio]
-enabled = false
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
 
 [inbucket]
-enabled = false
+enabled = true
+port = 54324
 
 [storage]
+enabled = true
+
+[storage.image_transformation]
 enabled = true
 
 [storage.buckets.integration-public]
@@ -75,4 +81,6 @@ verify_jwt = false
 entrypoint = "./functions/orangedot-integration-failure/index.ts"
 
 [analytics]
-enabled = false
+enabled = true
+port = 54327
+backend = "postgres"
