@@ -82,7 +82,7 @@ using OrangeDot.Supabase;
 var configured = SupabaseClient.Configure(new SupabaseOptions
 {
     Url = "https://abc.supabase.co",
-    AnonKey = "your-anon-key"
+    PublishableKey = "your-publishable-key"
 });
 
 var hydrated = await configured.LoadPersistedSessionAsync();
@@ -102,7 +102,7 @@ var services = new ServiceCollection();
 services.AddSupabaseHosted(options =>
 {
     options.Url = "https://abc.supabase.co";
-    options.AnonKey = "your-anon-key";
+    options.PublishableKey = "your-publishable-key";
 });
 ```
 
@@ -132,7 +132,7 @@ using OrangeDot.Supabase;
 var client = SupabaseStatelessClient.Create(new SupabaseOptions
 {
     Url = "https://abc.supabase.co",
-    AnonKey = "your-anon-key"
+    PublishableKey = "your-publishable-key"
 });
 
 var session = await client.Auth.SignIn(
@@ -154,8 +154,8 @@ var services = new ServiceCollection();
 services.AddSupabaseServer(options =>
 {
     options.Url = "https://abc.supabase.co";
-    options.AnonKey = "your-anon-key";
-    options.ServiceRoleKey = "your-service-role-key";
+    options.PublishableKey = "your-publishable-key";
+    options.SecretKey = "your-secret-key";
 });
 ```
 
@@ -187,6 +187,7 @@ Server factory notes:
 - each factory call creates fresh child clients and fresh underlying HTTP clients
 - callers own delegated-token lifecycle and expiry handling
 - `AuthOptions` stays project-level; delegated identity is carried by the factory-created child-client headers, not by `AuthOptions`
+- prefer `PublishableKey` for project-level client configuration and `SecretKey` only for privileged server operations
 - the current server path is correct for isolated per-operation usage, but not yet optimized for very high client churn
 - Storage still inherits upstream static-helper constraints under concurrent mixed-option initialization; PR21 does not change that module behavior
 

@@ -18,7 +18,7 @@ public sealed class SupabaseStatelessClientTests
     {
         var options = new SupabaseOptions
         {
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseStatelessClient.Create(options));
@@ -29,7 +29,7 @@ public sealed class SupabaseStatelessClientTests
     }
 
     [Fact]
-    public void Create_throws_configuration_missing_for_missing_anon_key()
+    public void Create_throws_configuration_missing_for_missing_publishable_key()
     {
         var options = new SupabaseOptions
         {
@@ -49,7 +49,7 @@ public sealed class SupabaseStatelessClientTests
         var options = new SupabaseOptions
         {
             Url = "not a url",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseStatelessClient.Create(options));
@@ -65,7 +65,7 @@ public sealed class SupabaseStatelessClientTests
         var options = new SupabaseOptions
         {
             Url = "ftp://example.com",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseStatelessClient.Create(options));
@@ -81,11 +81,11 @@ public sealed class SupabaseStatelessClientTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = "https://abc.supabase.co/",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         Assert.Equal("https://abc.supabase.co", client.Url);
-        Assert.Equal("anon-key", client.AnonKey);
+        Assert.Equal("publishable-key", client.AnonKey);
         Assert.Equal("https://abc.supabase.co", client.Urls.NormalizedBaseUrl);
         Assert.Equal("https://abc.supabase.co/auth/v1", client.Urls.AuthUrl);
         Assert.Equal("https://abc.supabase.co/rest/v1", client.Urls.RestUrl);
@@ -99,7 +99,7 @@ public sealed class SupabaseStatelessClientTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = "http://localhost:54321",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         Assert.Equal("http://localhost:54321", client.Url);
@@ -116,16 +116,16 @@ public sealed class SupabaseStatelessClientTests
         var options = new SupabaseOptions
         {
             Url = "https://abc.supabase.co/",
-            AnonKey = "initial-anon-key"
+            PublishableKey = "initial-publishable-key"
         };
 
         var client = SupabaseStatelessClient.Create(options);
 
         options.Url = "https://mutated.supabase.co";
-        options.AnonKey = "mutated-anon-key";
+        options.PublishableKey = "mutated-publishable-key";
 
         Assert.Equal("https://abc.supabase.co", client.Url);
-        Assert.Equal("initial-anon-key", client.AnonKey);
+        Assert.Equal("initial-publishable-key", client.AnonKey);
         Assert.Equal("https://abc.supabase.co", client.Urls.NormalizedBaseUrl);
     }
 
@@ -135,11 +135,11 @@ public sealed class SupabaseStatelessClientTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         Assert.Equal(client.Urls.AuthUrl, client.AuthOptions.Url);
-        Assert.Equal("anon-key", client.AuthOptions.Headers["apikey"]);
+        Assert.Equal("publishable-key", client.AuthOptions.Headers["apikey"]);
         Assert.DoesNotContain("Authorization", client.AuthOptions.Headers.Keys);
     }
 
@@ -149,7 +149,7 @@ public sealed class SupabaseStatelessClientTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var postgrest = Assert.IsType<global::Supabase.Postgrest.Client>(client.Postgrest);
@@ -162,11 +162,11 @@ public sealed class SupabaseStatelessClientTests
         Assert.NotNull(postgrest.GetHeaders);
 
         Assert.Equal(client.Urls.StorageUrl, ReadPublicOrNonPublicStringProperty(storage, "Url"));
-        Assert.Equal("anon-key", storage.Headers["apikey"]);
-        Assert.Equal("Bearer anon-key", storage.Headers["Authorization"]);
+        Assert.Equal("publishable-key", storage.Headers["apikey"]);
+        Assert.Equal("Bearer publishable-key", storage.Headers["Authorization"]);
 
         Assert.Equal(client.Urls.FunctionsUrl, ReadPrivateStringField(functions, "_baseUrl"));
-        Assert.Equal("anon-key", functions.GetHeaders!()["apikey"]);
+        Assert.Equal("publishable-key", functions.GetHeaders!()["apikey"]);
         Assert.DoesNotContain("Authorization", functions.GetHeaders!().Keys);
     }
 
@@ -176,7 +176,7 @@ public sealed class SupabaseStatelessClientTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var first = client.Functions.GetHeaders!();
@@ -185,10 +185,24 @@ public sealed class SupabaseStatelessClientTests
 
         var second = client.Functions.GetHeaders!();
 
-        Assert.Equal("anon-key", first["apikey"]);
-        Assert.Equal("anon-key", second["apikey"]);
+        Assert.Equal("publishable-key", first["apikey"]);
+        Assert.Equal("publishable-key", second["apikey"]);
         Assert.DoesNotContain("Authorization", second.Keys);
         Assert.DoesNotContain("Mutated", second.Keys);
+    }
+
+    [Fact]
+    public void Create_accepts_legacy_anon_key_alias()
+    {
+#pragma warning disable CS0618
+        var client = SupabaseStatelessClient.Create(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "legacy-anon-key"
+        });
+#pragma warning restore CS0618
+
+        Assert.Equal("legacy-anon-key", client.AnonKey);
     }
 
     private static string ReadPrivateStringField(object instance, string fieldName)

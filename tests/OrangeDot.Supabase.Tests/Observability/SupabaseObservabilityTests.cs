@@ -32,7 +32,7 @@ public sealed class SupabaseObservabilityTests
                 services.AddSupabaseHosted(options =>
                 {
                     options.Url = "https://abc.supabase.co";
-                    options.AnonKey = "anon-key";
+                    options.PublishableKey = "publishable-key";
                 });
             })
             .Build();

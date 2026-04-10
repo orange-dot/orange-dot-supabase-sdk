@@ -12,10 +12,10 @@ dotnet run --project samples/ServerMinimalApi/ServerMinimalApi.csproj --urls htt
 The sample reads:
 
 - `Supabase:Url`
-- `Supabase:AnonKey`
-- `Supabase:ServiceRoleKey`
+- `Supabase:PublishableKey`
+- `Supabase:SecretKey`
 
-`appsettings.Development.json` is already pointed at the local default Supabase stack and anon key, so the sample can run against `supabase start` without extra config.
+`appsettings.Development.json` is already pointed at the local default Supabase stack and publishable key, so the sample can run against `supabase start` without extra config.
 
 ## Endpoints
 

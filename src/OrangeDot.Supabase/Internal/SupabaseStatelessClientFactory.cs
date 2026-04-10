@@ -1,6 +1,5 @@
 using System;
 using Microsoft.Extensions.Options;
-using OrangeDot.Supabase.Errors;
 
 namespace OrangeDot.Supabase.Internal;
 
@@ -27,26 +26,16 @@ internal sealed class SupabaseStatelessClientFactory : ISupabaseStatelessClientF
 
     public ISupabaseStatelessClient CreateService()
     {
-        var serviceRoleKey = _options.Value.ServiceRoleKey;
-        if (string.IsNullOrWhiteSpace(serviceRoleKey))
-        {
-            throw new SupabaseConfigurationException(
-                SupabaseErrorCode.ConfigurationMissing,
-                "Supabase service role key is required.",
-                operation: nameof(CreateService));
-        }
+        var secretKey = SupabaseKeyResolver.ResolvePrivilegedKey(
+            _options.Value.ConfiguredSecretKey,
+            _options.Value.ConfiguredServiceRoleKey,
+            nameof(CreateService));
 
-        return SupabaseStatelessClient.Create(CreateSnapshot(nameof(CreateService)), serviceRoleKey);
+        return SupabaseStatelessClient.Create(CreateSnapshot(nameof(CreateService)), secretKey);
     }
 
     private LifecycleSnapshot CreateSnapshot(string operation)
     {
-        return SupabaseConfigurationSnapshotFactory.Create(
-            new SupabaseOptions
-            {
-                Url = _options.Value.Url,
-                AnonKey = _options.Value.AnonKey
-            },
-            operation);
+        return SupabaseConfigurationSnapshotFactory.Create(_options.Value, operation);
     }
 }

@@ -18,7 +18,7 @@ public sealed class SupabaseHostedStartupTests
         using var host = CreateHost(options =>
         {
             options.Url = "https://abc.supabase.co/";
-            options.AnonKey = "anon-key";
+            options.PublishableKey = "publishable-key";
         });
 
         var firstClient = host.Services.GetRequiredService<ISupabaseClient>();
@@ -40,7 +40,7 @@ public sealed class SupabaseHostedStartupTests
 
         Assert.True(firstClient.Ready.IsCompletedSuccessfully);
         Assert.Equal("https://abc.supabase.co", firstClient.Url);
-        Assert.Equal("anon-key", firstClient.AnonKey);
+        Assert.Equal("publishable-key", firstClient.AnonKey);
         Assert.Equal("https://abc.supabase.co", firstClient.Urls.NormalizedBaseUrl);
         Assert.NotNull(firstClient.Auth);
         Assert.NotNull(firstClient.Postgrest);
@@ -55,7 +55,7 @@ public sealed class SupabaseHostedStartupTests
         using var host = CreateHost(options =>
         {
             options.Url = "not a url";
-            options.AnonKey = "anon-key";
+            options.PublishableKey = "publishable-key";
         });
 
         var client = host.Services.GetRequiredService<ISupabaseClient>();
@@ -83,7 +83,7 @@ public sealed class SupabaseHostedStartupTests
             Options.Create(new SupabaseOptions
             {
                 Url = "https://abc.supabase.co",
-                AnonKey = "anon-key"
+                PublishableKey = "publishable-key"
             }),
             shell,
             NullLogger<SupabaseStartupService>.Instance,
@@ -113,7 +113,7 @@ public sealed class SupabaseHostedStartupTests
         using var host = CreateHost(options =>
         {
             options.Url = "https://abc.supabase.co/";
-            options.AnonKey = "anon-key";
+            options.PublishableKey = "publishable-key";
         });
 
         var client = host.Services.GetRequiredService<ISupabaseClient>();
@@ -157,7 +157,7 @@ public sealed class SupabaseHostedStartupTests
             Options.Create(new SupabaseOptions
             {
                 Url = "https://abc.supabase.co",
-                AnonKey = "anon-key"
+                PublishableKey = "publishable-key"
             }),
             shell,
             NullLogger<SupabaseStartupService>.Instance,
@@ -181,7 +181,7 @@ public sealed class SupabaseHostedStartupTests
             Options.Create(new SupabaseOptions
             {
                 Url = "https://abc.supabase.co",
-                AnonKey = "anon-key"
+                PublishableKey = "publishable-key"
             }),
             shell,
             NullLogger<SupabaseStartupService>.Instance,
@@ -205,7 +205,7 @@ public sealed class SupabaseHostedStartupTests
             Options.Create(new SupabaseOptions
             {
                 Url = "https://abc.supabase.co",
-                AnonKey = "anon-key"
+                PublishableKey = "publishable-key"
             }),
             shell,
             NullLogger<SupabaseStartupService>.Instance,
@@ -228,7 +228,7 @@ public sealed class SupabaseHostedStartupTests
             Options.Create(new SupabaseOptions
             {
                 Url = "https://abc.supabase.co",
-                AnonKey = "anon-key"
+                PublishableKey = "publishable-key"
             }),
             shell,
             NullLogger<SupabaseStartupService>.Instance,
@@ -264,7 +264,7 @@ public sealed class SupabaseHostedStartupTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var hydrated = await configured.LoadPersistedSessionAsync();

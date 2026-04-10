@@ -14,7 +14,7 @@ public sealed class SupabaseSessionPersistenceTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key",
+            PublishableKey = "publishable-key",
             SessionStore = store
         });
 
@@ -39,7 +39,7 @@ public sealed class SupabaseSessionPersistenceTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key",
+            PublishableKey = "publishable-key",
             SessionStore = new ThrowingLoadSessionStore(new InvalidOperationException("boom"))
         });
 
@@ -56,7 +56,7 @@ public sealed class SupabaseSessionPersistenceTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key",
+            PublishableKey = "publishable-key",
             SessionStore = new InMemorySessionStore(new global::Supabase.Gotrue.Session
             {
                 AccessToken = "access-only"
@@ -76,7 +76,7 @@ public sealed class SupabaseSessionPersistenceTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         using var client = await (await configured.LoadPersistedSessionAsync()).InitializeAsync();
@@ -97,7 +97,7 @@ public sealed class SupabaseSessionPersistenceTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key",
+            PublishableKey = "publishable-key",
             SessionStore = store
         });
 
@@ -111,8 +111,8 @@ public sealed class SupabaseSessionPersistenceTests
 
         Assert.DoesNotContain("Authorization", auth.GetHeaders!().Keys);
         Assert.DoesNotContain("Authorization", postgrest.GetHeaders!().Keys);
-        Assert.Equal("Bearer anon-key", storage.Headers["Authorization"]);
-        Assert.Equal("anon-key", storage.Headers["apikey"]);
+        Assert.Equal("Bearer publishable-key", storage.Headers["Authorization"]);
+        Assert.Equal("publishable-key", storage.Headers["apikey"]);
         Assert.DoesNotContain("Authorization", functions.GetHeaders!().Keys);
     }
 

@@ -17,7 +17,7 @@ public sealed class FunctionsIntegrationSmokeTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey
+            PublishableKey = settings.AnonKey
         });
 
         var result = await client.Functions.Invoke<IntegrationFunctionSmokeResponse>(
@@ -46,7 +46,7 @@ public sealed class FunctionsIntegrationSmokeTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey
+            PublishableKey = settings.AnonKey
         });
 
         var ex = await Assert.ThrowsAsync<FunctionsException>(async () =>

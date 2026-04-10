@@ -57,7 +57,7 @@ public sealed class SupabaseStatelessClientFactoryTests
     [Fact]
     public void Create_service_throws_configuration_missing_when_service_role_key_is_not_configured()
     {
-        using var provider = CreateProvider(configure: options => options.ServiceRoleKey = null);
+        using var provider = CreateProvider(configure: options => options.SecretKey = null);
         var factory = provider.GetRequiredService<ISupabaseStatelessClientFactory>();
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => factory.CreateService());
@@ -84,9 +84,9 @@ public sealed class SupabaseStatelessClientFactoryTests
         Assert.Equal(user.Url, service.Url);
         Assert.Equal(anon.Urls.NormalizedBaseUrl, user.Urls.NormalizedBaseUrl);
         Assert.Equal(user.Urls.NormalizedBaseUrl, service.Urls.NormalizedBaseUrl);
-        Assert.Equal("anon-key", anon.AuthOptions.Headers["apikey"]);
-        Assert.Equal("anon-key", user.AuthOptions.Headers["apikey"]);
-        Assert.Equal("anon-key", service.AuthOptions.Headers["apikey"]);
+        Assert.Equal("publishable-key", anon.AuthOptions.Headers["apikey"]);
+        Assert.Equal("publishable-key", user.AuthOptions.Headers["apikey"]);
+        Assert.Equal("publishable-key", service.AuthOptions.Headers["apikey"]);
         Assert.DoesNotContain("Authorization", anon.AuthOptions.Headers.Keys);
         Assert.DoesNotContain("Authorization", user.AuthOptions.Headers.Keys);
         Assert.DoesNotContain("Authorization", service.AuthOptions.Headers.Keys);
@@ -107,11 +107,11 @@ public sealed class SupabaseStatelessClientFactoryTests
         var functionsHeaders = functions.GetHeaders!();
 
         Assert.Empty(postgrest.Options.Headers);
-        Assert.Equal("anon-key", postgrestHeaders["apikey"]);
+        Assert.Equal("publishable-key", postgrestHeaders["apikey"]);
         Assert.Equal("Bearer user-token", postgrestHeaders["Authorization"]);
-        Assert.Equal("anon-key", functionsHeaders["apikey"]);
+        Assert.Equal("publishable-key", functionsHeaders["apikey"]);
         Assert.Equal("Bearer user-token", functionsHeaders["Authorization"]);
-        Assert.Equal("anon-key", storage.Headers["apikey"]);
+        Assert.Equal("publishable-key", storage.Headers["apikey"]);
         Assert.Equal("Bearer user-token", storage.Headers["Authorization"]);
     }
 
@@ -126,9 +126,9 @@ public sealed class SupabaseStatelessClientFactoryTests
         var functions = Assert.IsType<global::Supabase.Functions.Client>(client.Functions);
         var storage = Assert.IsType<global::Supabase.Storage.Client>(client.Storage);
 
-        Assert.Equal("Bearer service-role-key", postgrest.GetHeaders!()["Authorization"]);
-        Assert.Equal("Bearer service-role-key", functions.GetHeaders!()["Authorization"]);
-        Assert.Equal("Bearer service-role-key", storage.Headers["Authorization"]);
+        Assert.Equal("Bearer secret-key", postgrest.GetHeaders!()["Authorization"]);
+        Assert.Equal("Bearer secret-key", functions.GetHeaders!()["Authorization"]);
+        Assert.Equal("Bearer secret-key", storage.Headers["Authorization"]);
     }
 
     [Fact]
@@ -158,9 +158,27 @@ public sealed class SupabaseStatelessClientFactoryTests
 
         var second = functions.GetHeaders!();
 
-        Assert.Equal("anon-key", second["apikey"]);
+        Assert.Equal("publishable-key", second["apikey"]);
         Assert.Equal("Bearer user-token", second["Authorization"]);
         Assert.DoesNotContain("Mutated", second.Keys);
+    }
+
+    [Fact]
+    public void Create_service_accepts_legacy_service_role_key_alias()
+    {
+        using var provider = CreateProvider(configure: options =>
+        {
+            options.SecretKey = null;
+#pragma warning disable CS0618
+            options.ServiceRoleKey = "legacy-service-role-key";
+#pragma warning restore CS0618
+        });
+        var factory = provider.GetRequiredService<ISupabaseStatelessClientFactory>();
+
+        var client = factory.CreateService();
+        var functions = Assert.IsType<global::Supabase.Functions.Client>(client.Functions);
+
+        Assert.Equal("Bearer legacy-service-role-key", functions.GetHeaders!()["Authorization"]);
     }
 
     private static ServiceProvider CreateProvider(Action<SupabaseServerOptions>? configure = null)
@@ -170,8 +188,8 @@ public sealed class SupabaseStatelessClientFactoryTests
         services.AddSupabaseServer(options =>
         {
             options.Url = "https://abc.supabase.co";
-            options.AnonKey = "anon-key";
-            options.ServiceRoleKey = "service-role-key";
+            options.PublishableKey = "publishable-key";
+            options.SecretKey = "secret-key";
             configure?.Invoke(options);
         });
 
