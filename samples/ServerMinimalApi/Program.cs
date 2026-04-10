@@ -8,8 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSupabaseServer(options =>
 {
     options.Url = builder.Configuration["Supabase:Url"];
-    options.AnonKey = builder.Configuration["Supabase:AnonKey"];
-    options.ServiceRoleKey = builder.Configuration["Supabase:ServiceRoleKey"];
+    options.PublishableKey = builder.Configuration["Supabase:PublishableKey"];
+    options.SecretKey = builder.Configuration["Supabase:SecretKey"];
 });
 builder.Services.AddSingleton<TodoQueryService>();
 

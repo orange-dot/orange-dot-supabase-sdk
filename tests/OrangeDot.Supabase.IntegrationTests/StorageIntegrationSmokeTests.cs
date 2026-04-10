@@ -19,7 +19,7 @@ public sealed class StorageIntegrationSmokeTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey
+            PublishableKey = settings.AnonKey
         });
 
         var files = await client.Storage.From(IntegrationTestEnvironment.IntegrationBucketName).List();
@@ -37,7 +37,7 @@ public sealed class StorageIntegrationSmokeTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey
+            PublishableKey = settings.AnonKey
         });
 
         var bucket = client.Storage.From(IntegrationTestEnvironment.IntegrationBucketName);

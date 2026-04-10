@@ -94,7 +94,7 @@ Delivery target: polished v0.1 design package and prototype baseline
 
 **Afternoon: DI extensions (Contrast 5, supporting)**
 - `src/OrangeDot.Supabase/Extensions/ServiceCollectionExtensions.cs`
-- `services.AddSupabaseHosted(opts => { opts.Url = ...; opts.AnonKey = ...; })` registers:
+- `services.AddSupabaseHosted(opts => { opts.Url = ...; opts.PublishableKey = ...; })` registers:
   - `SupabaseOptions` as `IOptions<SupabaseOptions>`
   - `IAuthStateObserver` as singleton
   - `ISupabaseClient` as a readiness-gated singleton shell
@@ -159,7 +159,7 @@ Delivery target: polished v0.1 design package and prototype baseline
 **Afternoon: stateless client + console sample**
 - `src/OrangeDot.Supabase.Stateless/SupabaseStateless.cs` — static convenience methods for one-shot operations without DI
 - `samples/Console/Program.cs` — end-to-end demo:
-  - Configure with local Supabase URL + anon key
+  - Configure with local Supabase URL + publishable key
   - Sign in anonymously or with email
   - Query a table
   - Subscribe to a realtime channel, print changes

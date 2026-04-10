@@ -25,7 +25,7 @@ public sealed class LifecycleTransitionTests
         var options = new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var configured = SupabaseClient.Configure(options);
@@ -33,7 +33,7 @@ public sealed class LifecycleTransitionTests
         var client = await hydrated.InitializeAsync();
 
         Assert.Equal("https://abc.supabase.co", client.Url);
-        Assert.Equal("anon-key", client.AnonKey);
+        Assert.Equal("publishable-key", client.AnonKey);
         Assert.Equal("https://abc.supabase.co", client.Urls.NormalizedBaseUrl);
         Assert.Equal("https://abc.supabase.co/auth/v1", client.Urls.AuthUrl);
         Assert.NotNull(client.Auth);
@@ -48,7 +48,7 @@ public sealed class LifecycleTransitionTests
     {
         var options = new SupabaseOptions
         {
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseClient.Configure(options));
@@ -59,7 +59,7 @@ public sealed class LifecycleTransitionTests
     }
 
     [Fact]
-    public void Configure_throws_configuration_missing_for_missing_anon_key()
+    public void Configure_throws_configuration_missing_for_missing_publishable_key()
     {
         var options = new SupabaseOptions
         {
@@ -79,7 +79,7 @@ public sealed class LifecycleTransitionTests
         var options = new SupabaseOptions
         {
             Url = "not a url",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseClient.Configure(options));
@@ -95,7 +95,7 @@ public sealed class LifecycleTransitionTests
         var options = new SupabaseOptions
         {
             Url = "ftp://example.com",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         };
 
         var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseClient.Configure(options));
@@ -111,7 +111,7 @@ public sealed class LifecycleTransitionTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co/",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var client = await (await configured.LoadPersistedSessionAsync()).InitializeAsync();
@@ -126,19 +126,19 @@ public sealed class LifecycleTransitionTests
         var options = new SupabaseOptions
         {
             Url = "https://abc.supabase.co/",
-            AnonKey = "initial-anon-key"
+            PublishableKey = "initial-publishable-key"
         };
 
         var configured = SupabaseClient.Configure(options);
 
         options.Url = "https://mutated.supabase.co";
-        options.AnonKey = "mutated-anon-key";
+        options.PublishableKey = "mutated-publishable-key";
 
         var hydrated = await configured.LoadPersistedSessionAsync();
         var client = await hydrated.InitializeAsync();
 
         Assert.Equal("https://abc.supabase.co", client.Url);
-        Assert.Equal("initial-anon-key", client.AnonKey);
+        Assert.Equal("initial-publishable-key", client.AnonKey);
         Assert.Equal("https://abc.supabase.co", client.Urls.NormalizedBaseUrl);
     }
 
@@ -148,7 +148,7 @@ public sealed class LifecycleTransitionTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var hydrated = await configured.LoadPersistedSessionAsync();
@@ -170,7 +170,7 @@ public sealed class LifecycleTransitionTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         }, runtimeContext);
 
         var hydrated = await configured.LoadPersistedSessionAsync();
@@ -217,13 +217,13 @@ public sealed class LifecycleTransitionTests
         var firstConfigured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://first.supabase.co",
-            AnonKey = "first-key"
+            PublishableKey = "first-key"
         });
 
         var secondConfigured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://second.supabase.co",
-            AnonKey = "second-key"
+            PublishableKey = "second-key"
         });
 
         var firstClient = await (await firstConfigured.LoadPersistedSessionAsync()).InitializeAsync();
@@ -242,7 +242,7 @@ public sealed class LifecycleTransitionTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         configured.Dispose();
@@ -256,7 +256,7 @@ public sealed class LifecycleTransitionTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var hydrated = await configured.LoadPersistedSessionAsync();
@@ -271,7 +271,7 @@ public sealed class LifecycleTransitionTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var client = await (await configured.LoadPersistedSessionAsync()).InitializeAsync();
@@ -286,6 +286,40 @@ public sealed class LifecycleTransitionTests
         Assert.Throws<ObjectDisposedException>(() => _ = client.AnonKey);
         Assert.Throws<ObjectDisposedException>(() => _ = client.Urls);
         Assert.Throws<ObjectDisposedException>(() => client.Table<TestModel>());
+    }
+
+    [Fact]
+    public async Task Configure_accepts_legacy_anon_key_alias()
+    {
+#pragma warning disable CS0618
+        var configured = SupabaseClient.Configure(new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            AnonKey = "legacy-anon-key"
+        });
+#pragma warning restore CS0618
+
+        var client = await (await configured.LoadPersistedSessionAsync()).InitializeAsync();
+
+        Assert.Equal("legacy-anon-key", client.AnonKey);
+    }
+
+    [Fact]
+    public void Configure_throws_configuration_invalid_for_conflicting_publishable_and_anon_keys()
+    {
+#pragma warning disable CS0618
+        var options = new SupabaseOptions
+        {
+            Url = "https://abc.supabase.co",
+            PublishableKey = "publishable-key",
+            AnonKey = "legacy-anon-key"
+        };
+#pragma warning restore CS0618
+
+        var exception = Assert.Throws<SupabaseConfigurationException>(() => SupabaseClient.Configure(options));
+
+        Assert.Equal(SupabaseErrorCode.ConfigurationInvalid, exception.ErrorCode);
+        Assert.Equal("Configure", exception.Operation);
     }
 
     private sealed class TestModel : global::Supabase.Postgrest.Models.BaseModel

@@ -19,7 +19,7 @@ public sealed class HostedStartupIntegrationTests
                 services.AddSupabaseHosted(options =>
                 {
                     options.Url = settings.Url;
-                    options.AnonKey = settings.AnonKey;
+                    options.PublishableKey = settings.AnonKey;
                 });
             })
             .Build();

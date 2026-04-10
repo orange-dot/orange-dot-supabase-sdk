@@ -166,7 +166,7 @@ public sealed class StatefulPersistenceContractIntegrationTests
         return new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey,
+            PublishableKey = settings.AnonKey,
             SessionStore = store
         };
     }

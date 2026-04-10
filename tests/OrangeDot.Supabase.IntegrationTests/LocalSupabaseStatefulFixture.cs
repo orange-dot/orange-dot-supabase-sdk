@@ -17,7 +17,7 @@ public sealed class LocalSupabaseStatefulFixture : IAsyncLifetime
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = Settings.Url,
-            AnonKey = Settings.AnonKey
+            PublishableKey = Settings.AnonKey
         });
 
         var hydrated = await configured.LoadPersistedSessionAsync();

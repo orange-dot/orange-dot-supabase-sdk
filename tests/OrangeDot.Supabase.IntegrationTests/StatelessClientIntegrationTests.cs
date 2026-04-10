@@ -15,7 +15,7 @@ public sealed class StatelessClientIntegrationTests
         var client = SupabaseStatelessClient.Create(new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey
+            PublishableKey = settings.AnonKey
         });
 
         var ownerTag = IntegrationTestEnvironment.NewOwnerTag("stateless");

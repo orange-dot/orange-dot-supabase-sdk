@@ -176,7 +176,7 @@ public sealed class RealtimeSubscriptionIntegrationTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = settings.Url,
-            AnonKey = settings.AnonKey
+            PublishableKey = settings.AnonKey
         });
 
         var hydrated = await configured.LoadPersistedSessionAsync();

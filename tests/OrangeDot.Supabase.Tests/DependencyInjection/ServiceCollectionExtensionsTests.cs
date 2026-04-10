@@ -39,7 +39,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddSupabaseHosted(options =>
         {
             options.Url = "https://abc.supabase.co/";
-            options.AnonKey = "anon-key";
+            options.PublishableKey = "publishable-key";
         });
 
         using var provider = services.BuildServiceProvider();
@@ -52,7 +52,7 @@ public sealed class ServiceCollectionExtensionsTests
         var hostedServices = provider.GetServices<IHostedService>().ToArray();
 
         Assert.Equal("https://abc.supabase.co/", options.Url);
-        Assert.Equal("anon-key", options.AnonKey);
+        Assert.Equal("publishable-key", options.PublishableKey);
         Assert.IsType<AuthStateObserver>(observer);
         Assert.Same(concreteObserver, observer);
         Assert.Same(firstClient, secondClient);
@@ -68,8 +68,8 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddSupabaseServer(options =>
         {
             options.Url = "https://abc.supabase.co/";
-            options.AnonKey = "anon-key";
-            options.ServiceRoleKey = "service-role-key";
+            options.PublishableKey = "publishable-key";
+            options.SecretKey = "secret-key";
         });
 
         using var provider = services.BuildServiceProvider();
@@ -80,8 +80,8 @@ public sealed class ServiceCollectionExtensionsTests
         var hostedServices = provider.GetServices<IHostedService>().ToArray();
 
         Assert.Equal("https://abc.supabase.co/", options.Url);
-        Assert.Equal("anon-key", options.AnonKey);
-        Assert.Equal("service-role-key", options.ServiceRoleKey);
+        Assert.Equal("publishable-key", options.PublishableKey);
+        Assert.Equal("secret-key", options.SecretKey);
         Assert.Same(firstFactory, secondFactory);
         Assert.Null(provider.GetService<ISupabaseClient>());
         Assert.Empty(hostedServices);
@@ -94,12 +94,12 @@ public sealed class ServiceCollectionExtensionsTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddSingleton(new OptionSeed("https://seeded.supabase.co/", "seeded-anon-key"));
+                services.AddSingleton(new OptionSeed("https://seeded.supabase.co/", "seeded-publishable-key"));
                 services.AddSupabaseHosted((serviceProvider, options) =>
                 {
                     var seed = serviceProvider.GetRequiredService<OptionSeed>();
                     options.Url = seed.Url;
-                    options.AnonKey = seed.AnonKey;
+                    options.PublishableKey = seed.PublishableKey;
                 });
             })
             .Build();
@@ -110,7 +110,7 @@ public sealed class ServiceCollectionExtensionsTests
         await client.Ready;
 
         Assert.Equal("https://seeded.supabase.co", client.Url);
-        Assert.Equal("seeded-anon-key", client.AnonKey);
+        Assert.Equal("seeded-publishable-key", client.AnonKey);
         Assert.Equal("https://seeded.supabase.co", client.Urls.NormalizedBaseUrl);
         Assert.NotNull(client.Auth);
         Assert.NotNull(client.Postgrest);
@@ -124,13 +124,13 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(new ServerOptionSeed("https://seeded.supabase.co/", "seeded-anon-key", "seeded-service-role-key"));
+        services.AddSingleton(new ServerOptionSeed("https://seeded.supabase.co/", "seeded-publishable-key", "seeded-secret-key"));
         services.AddSupabaseServer((serviceProvider, options) =>
         {
             var seed = serviceProvider.GetRequiredService<ServerOptionSeed>();
             options.Url = seed.Url;
-            options.AnonKey = seed.AnonKey;
-            options.ServiceRoleKey = seed.ServiceRoleKey;
+            options.PublishableKey = seed.PublishableKey;
+            options.SecretKey = seed.SecretKey;
         });
 
         using var provider = services.BuildServiceProvider();
@@ -139,7 +139,7 @@ public sealed class ServiceCollectionExtensionsTests
         var serviceClient = factory.CreateService();
 
         Assert.Equal("https://seeded.supabase.co", serviceClient.Url);
-        Assert.Equal("seeded-anon-key", serviceClient.AnonKey);
+        Assert.Equal("seeded-publishable-key", serviceClient.AnonKey);
         Assert.Equal("https://seeded.supabase.co", serviceClient.Urls.NormalizedBaseUrl);
     }
 
@@ -153,13 +153,13 @@ public sealed class ServiceCollectionExtensionsTests
                 services.AddSupabaseHosted(options =>
                 {
                     options.Url = "https://hosted.supabase.co/";
-                    options.AnonKey = "hosted-anon-key";
+                    options.PublishableKey = "hosted-publishable-key";
                 });
                 services.AddSupabaseServer(options =>
                 {
                     options.Url = "https://server.supabase.co/";
-                    options.AnonKey = "server-anon-key";
-                    options.ServiceRoleKey = "server-service-role-key";
+                    options.PublishableKey = "server-publishable-key";
+                    options.SecretKey = "server-secret-key";
                 });
             })
             .Build();
@@ -175,19 +175,42 @@ public sealed class ServiceCollectionExtensionsTests
         var serverClient = factory.CreateService();
 
         Assert.Equal("https://hosted.supabase.co/", hostedOptions.Url);
-        Assert.Equal("hosted-anon-key", hostedOptions.AnonKey);
+        Assert.Equal("hosted-publishable-key", hostedOptions.PublishableKey);
         Assert.Equal("https://server.supabase.co/", serverOptions.Url);
-        Assert.Equal("server-anon-key", serverOptions.AnonKey);
-        Assert.Equal("server-service-role-key", serverOptions.ServiceRoleKey);
+        Assert.Equal("server-publishable-key", serverOptions.PublishableKey);
+        Assert.Equal("server-secret-key", serverOptions.SecretKey);
 
         Assert.Equal("https://hosted.supabase.co", hostedClient.Url);
-        Assert.Equal("hosted-anon-key", hostedClient.AnonKey);
+        Assert.Equal("hosted-publishable-key", hostedClient.AnonKey);
         Assert.Equal("https://server.supabase.co", serverClient.Url);
-        Assert.Equal("server-anon-key", serverClient.AnonKey);
-        Assert.Equal("Bearer server-service-role-key", Assert.IsType<global::Supabase.Storage.Client>(serverClient.Storage).Headers["Authorization"]);
+        Assert.Equal("server-publishable-key", serverClient.AnonKey);
+        Assert.Equal("Bearer server-secret-key", Assert.IsType<global::Supabase.Storage.Client>(serverClient.Storage).Headers["Authorization"]);
     }
 
-    private sealed record OptionSeed(string Url, string AnonKey);
+    [Fact]
+    public void Add_supabase_server_supports_legacy_aliases()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSupabaseServer(options =>
+        {
+            options.Url = "https://abc.supabase.co/";
+#pragma warning disable CS0618
+            options.AnonKey = "legacy-anon-key";
+            options.ServiceRoleKey = "legacy-service-role-key";
+#pragma warning restore CS0618
+        });
 
-    private sealed record ServerOptionSeed(string Url, string AnonKey, string ServiceRoleKey);
+        using var provider = services.BuildServiceProvider();
+
+        var factory = provider.GetRequiredService<ISupabaseStatelessClientFactory>();
+        var client = factory.CreateService();
+
+        Assert.Equal("legacy-anon-key", client.AnonKey);
+        Assert.Equal("Bearer legacy-service-role-key", Assert.IsType<global::Supabase.Functions.Client>(client.Functions).GetHeaders!()["Authorization"]);
+    }
+
+    private sealed record OptionSeed(string Url, string PublishableKey);
+
+    private sealed record ServerOptionSeed(string Url, string PublishableKey, string SecretKey);
 }

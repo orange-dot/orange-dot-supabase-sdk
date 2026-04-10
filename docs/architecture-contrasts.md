@@ -49,7 +49,7 @@ await client.Auth.LoadSession();      // sometimes forgotten
 
 // Orange-dot: typed transitions
 var configured = SupabaseClient
-    .Configure(new SupabaseOptions { Url = url, AnonKey = key });
+    .Configure(new SupabaseOptions { Url = url, PublishableKey = key });
 
 var hydrated = await configured
     .LoadPersistedSessionAsync();     // only exists on ConfiguredClient

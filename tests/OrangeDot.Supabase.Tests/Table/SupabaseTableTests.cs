@@ -237,7 +237,7 @@ public sealed class SupabaseTableTests
         var configured = SupabaseClient.Configure(new SupabaseOptions
         {
             Url = "https://abc.supabase.co",
-            AnonKey = "anon-key"
+            PublishableKey = "publishable-key"
         });
 
         var hydrated = configured.LoadPersistedSessionAsync().GetAwaiter().GetResult();
