@@ -383,9 +383,12 @@ public sealed class ResearchWorkspaceSampleEndpointSmokeTests
     private static Process StartSampleProcess(IntegrationTestSettings settings, string baseUrl)
     {
         var repoRoot = FindRepoRoot();
+        var runArguments = HasSampleAssets(repoRoot)
+            ? $"run --configuration Release --no-restore --project samples/ResearchWorkspaceApi/ResearchWorkspaceApi.csproj --framework {SampleTargetFramework} --urls {baseUrl}"
+            : $"run --configuration Release --project samples/ResearchWorkspaceApi/ResearchWorkspaceApi.csproj --framework {SampleTargetFramework} --urls {baseUrl}";
         var startInfo = new ProcessStartInfo(
             "dotnet",
-            $"run --configuration Release --no-restore --project samples/ResearchWorkspaceApi/ResearchWorkspaceApi.csproj --framework {SampleTargetFramework} --urls {baseUrl}")
+            runArguments)
         {
             WorkingDirectory = repoRoot,
             RedirectStandardOutput = true,
@@ -399,6 +402,18 @@ public sealed class ResearchWorkspaceSampleEndpointSmokeTests
         startInfo.Environment["Supabase__SecretKey"] = settings.SecretKey;
 
         return Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start ResearchWorkspaceApi sample process.");
+    }
+
+    private static bool HasSampleAssets(string repoRoot)
+    {
+        var assetsPath = Path.Combine(
+            repoRoot,
+            "samples",
+            "ResearchWorkspaceApi",
+            "obj",
+            "project.assets.json");
+
+        return File.Exists(assetsPath);
     }
 
     private static async Task WaitForHealthyAsync(HttpClient client, Process process)
