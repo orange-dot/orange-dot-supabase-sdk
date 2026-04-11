@@ -6,9 +6,9 @@ Targets: `net8.0`, `net10.0`
 
 `orange-dot-supabase-sdk` is a source-first reimplementation of the orchestration layer of the Supabase C# SDK. It keeps the upstream child modules pinned and unchanged, and focuses on the top-level client surface where lifecycle, DI, readiness, auth propagation, URL derivation, observability, table convenience, and runnable usage samples are defined.
 
-Today the repo includes a working stateful client, a DI/hosted construction path, a stateless client, a realtime-aware `Table<T>()` wrapper, a minimal ASP.NET Core server sample, typed orchestration-layer exceptions, unit-test coverage, and an opt-in local-Supabase integration test slice around the composition boundary. It does not yet ship as a NuGet package.
+Today the repo includes a working stateful client, a DI/hosted construction path, a stateless client, a realtime-aware `Table<T>()` wrapper, runnable ASP.NET Core server samples, typed orchestration-layer exceptions, unit-test coverage, and an opt-in local-Supabase integration test slice around the composition boundary. It does not yet ship as a NuGet package.
 
-> Current status: usable from source, honest about its prototype scope, with an initial server-side sample included.
+> Current status: usable from source, honest about its prototype scope, with runnable server-side samples included.
 
 ## Why this repo exists
 
@@ -25,7 +25,8 @@ See [docs/architecture-contrasts.md](docs/architecture-contrasts.md) for the ful
 - `ISupabaseClient` plus `services.AddSupabaseHosted(...)` and readiness gating through `Task Ready`
 - `ISupabaseStatelessClientFactory` plus `services.AddSupabaseServer(...)` for server-side fresh stateless clients
 - `SupabaseStatelessClient` for one-shot and non-DI usage
-- `samples/ServerMinimalApi/` as a runnable ASP.NET Core sample for the server-side DI path
+- `samples/ServerMinimalApi/` as the minimal ASP.NET Core sample for the server-side DI path
+- `samples/ResearchWorkspaceApi/` as the fuller research-workspace sample covering a backend workflow built on the SDK, plus an embedded browser cockpit, Swagger/OpenAPI docs, RLS, storage, functions, and realtime
 - `Table<T>()` and `ISupabaseTable<T>` for PostgREST query chaining plus realtime `.On(...)`
 - `IAuthStateObserver` and auth bindings for header-based clients and realtime
 - `SupabaseUrls` derivation for hosted and self-hosted deployments
@@ -60,10 +61,22 @@ CI currently pins Supabase CLI `2.84.2` for reproducible integration runs.
 
 The local stack now includes repo-managed storage and edge-function fixtures:
 - storage bucket: `integration-public`
+- storage bucket: `research-artifacts`
 - edge function: `orangedot-integration-smoke`
 - edge function: `orangedot-integration-failure`
+- edge function: `research-promote-baseline`
 
-Those fixtures are intended for integration smoke checks now and richer storage/functions scenarios in follow-up PRs.
+Those fixtures support both smoke checks and the research-workspace sample scenario.
+The `ResearchWorkspace` live slice now covers both direct SDK/RLS behavior and an authenticated sample-API HTTP flow end to end.
+
+## ResearchWorkspace Layering
+
+`samples/ResearchWorkspaceApi` is intentionally split into two layers:
+
+- SDK-backed backend: the ASP.NET sample uses `AddSupabaseServer(...)`, `ISupabaseStatelessClientFactory`, and the Orange Dot orchestration layer for delegated PostgREST, Storage, Functions, and Realtime behavior.
+- Thin browser transport: the embedded cockpit is static HTML/CSS/JavaScript that talks to the sample API with `fetch`, and its signup/login helper exchanges credentials against local Supabase Auth over HTTP using the publishable key.
+
+That split is deliberate. The sample demonstrates the SDK where this repo adds value today: server-side orchestration, delegated auth propagation, typed error handling, and runnable end-to-end flows. The browser shell stays lightweight and does not introduce a separate frontend SDK wrapper.
 
 If you use the local Homebrew-based setup from this repo and see a Supabase CLI update warning:
 
@@ -212,12 +225,13 @@ var channel = await client.Table<Todo>().On(
 - [Prototype scope / decision log](docs/decision-log.md)
 - [Project positioning](docs/project-positioning.md)
 - [Verification artifacts](spec/README.md)
-- [Server sample](samples/ServerMinimalApi/README.md)
+- [Minimal server sample](samples/ServerMinimalApi/README.md)
+- [Research workspace sample with browser cockpit and Swagger](samples/ResearchWorkspaceApi/README.md)
 
 ## Current Limitations
 
 - Source-first repo only; no NuGet publishing flow yet
-- Sample application coverage is still minimal; only the server-side Minimal API sample is included so far
+- Source-first repo only; sample apps are runnable but still intentionally educational rather than production-hardened
 - Child modules under `modules/` are pinned upstream dependencies and are not patched locally
 - Stateless server factory calls currently allocate fresh underlying HTTP clients; `IHttpClientFactory` integration is future work
 - Storage server-path behavior still depends on upstream module internals around helper initialization order

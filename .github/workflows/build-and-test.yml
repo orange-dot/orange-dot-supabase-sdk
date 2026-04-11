@@ -86,8 +86,11 @@ jobs:
       - name: Supabase Status
         run: supabase status
 
-      - name: Integration Test
-        run: dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release
+      - name: Integration Test net8.0
+        run: dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release -f net8.0
+
+      - name: Integration Test net10.0
+        run: dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release -f net10.0
 
       - name: Docker Containers
         if: failure()
