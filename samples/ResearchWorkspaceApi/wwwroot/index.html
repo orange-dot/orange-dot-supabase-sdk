@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Research Workspace Cockpit</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="panel hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Research Workspace Cockpit</p>
+        <h1 id="sample-name">Research Workspace API</h1>
+        <p class="hero-text">
+          A browser-side control room for the Supabase-backed research workflow: the browser stays lightweight, while the
+          protected research flow itself runs through the Orange Dot SDK on the server.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-block">
+          <span class="meta-label">Local stack</span>
+          <a id="supabase-url" class="meta-link" href="#" target="_blank" rel="noreferrer">http://127.0.0.1:54321</a>
+        </div>
+        <div class="hero-links">
+          <a id="swagger-link" class="hero-link" href="/swagger" target="_blank" rel="noreferrer">Swagger</a>
+          <a id="openapi-link" class="hero-link" href="/openapi/v1.json" target="_blank" rel="noreferrer">OpenAPI JSON</a>
+        </div>
+        <div id="capability-chips" class="chip-row"></div>
+      </div>
+    </header>
+
+    <div id="flash" class="notice notice-neutral hidden" role="status" aria-live="polite"></div>
+
+    <section class="stats-grid" aria-label="Workspace metadata">
+      <article class="stat-card">
+        <span class="stat-label">Artifact bucket</span>
+        <strong id="bucket-name">research-artifacts</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Baseline function</span>
+        <strong id="function-name">research-promote-baseline</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Current session</span>
+        <strong id="session-summary">Anonymous browser</strong>
+      </article>
+    </section>
+
+    <div class="workspace-grid">
+      <section class="panel session-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Auth Deck</p>
+            <h2>Browser session</h2>
+          </div>
+          <span id="session-pill" class="badge badge-idle">Signed out</span>
+        </div>
+
+        <form id="auth-form" class="stack-form">
+          <label>
+            <span>Email</span>
+            <input id="auth-email" name="email" type="email" placeholder="owner@example.com" autocomplete="username">
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="auth-password" name="password" type="password" placeholder="password123" autocomplete="current-password">
+          </label>
+          <div class="button-row">
+            <button id="sign-in-button" type="submit">Sign In</button>
+            <button id="sign-up-button" type="button" class="secondary">Sign Up</button>
+            <button id="sign-out-button" type="button" class="ghost">Sign Out</button>
+          </div>
+        </form>
+
+        <div class="identity-card">
+          <div class="identity-row">
+            <span class="meta-label">Email</span>
+            <strong id="session-email">No active session</strong>
+          </div>
+          <div class="identity-row">
+            <span class="meta-label">User ID</span>
+            <code id="session-user-id">-</code>
+          </div>
+          <div class="identity-row">
+            <span class="meta-label">Token</span>
+            <strong id="session-expiry">Sign in to load workspace data</strong>
+          </div>
+        </div>
+
+        <div class="panel-note">
+          The UI stores only the access token in browser storage. The cockpit talks to the sample API with plain browser
+          fetch calls, while the protected research workflow behind that API is executed through the Orange Dot SDK with
+          no server-side cookie session.
+        </div>
+      </section>
+
+      <section class="panel context-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Context</p>
+            <h2>Workspace focus</h2>
+          </div>
+          <button id="refresh-button" type="button" class="secondary">Refresh</button>
+        </div>
+
+        <div class="control-grid">
+          <label>
+            <span>Organization</span>
+            <select id="organization-select"></select>
+          </label>
+          <label>
+            <span>Project</span>
+            <select id="project-select"></select>
+          </label>
+          <label>
+            <span>Experiment</span>
+            <select id="experiment-select"></select>
+          </label>
+          <label>
+            <span>Run</span>
+            <select id="run-select"></select>
+          </label>
+        </div>
+
+        <div class="mini-stats">
+          <article>
+            <span class="meta-label">Organizations</span>
+            <strong id="organizations-count">0</strong>
+          </article>
+          <article>
+            <span class="meta-label">Projects</span>
+            <strong id="projects-count">0</strong>
+          </article>
+          <article>
+            <span class="meta-label">Experiments</span>
+            <strong id="experiments-count">0</strong>
+          </article>
+          <article>
+            <span class="meta-label">Runs</span>
+            <strong id="runs-count">0</strong>
+          </article>
+        </div>
+
+        <p id="workspace-hint" class="panel-note">
+          Sign in, then create an organization and step down the stack into projects, experiments, and runs.
+        </p>
+      </section>
+
+      <section class="panel organizations-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Organizations</p>
+            <h2>Teams and roles</h2>
+          </div>
+          <span class="badge">Owner / Editor / Viewer</span>
+        </div>
+
+        <form id="organization-form" class="stack-form compact-form">
+          <label>
+            <span>New organization</span>
+            <input id="organization-name" name="name" type="text" placeholder="Audio Research Guild">
+          </label>
+          <button type="submit">Create organization</button>
+        </form>
+
+        <div class="split-section">
+          <div>
+            <h3 class="subheading">Visible organizations</h3>
+            <div id="organizations-list" class="ledger"></div>
+          </div>
+          <div>
+            <h3 class="subheading">Memberships for selected organization</h3>
+            <form id="membership-form" class="stack-form compact-form">
+              <label>
+                <span>User ID</span>
+                <input id="membership-user-id" name="userId" type="text" placeholder="Paste another user's UUID">
+              </label>
+              <label>
+                <span>Role</span>
+                <select id="membership-role" name="role"></select>
+              </label>
+              <button type="submit" class="secondary">Add membership</button>
+            </form>
+            <div id="memberships-list" class="ledger"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel lab-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Lab Structure</p>
+            <h2>Projects and experiments</h2>
+          </div>
+          <span id="baseline-run" class="badge badge-quiet">No baseline selected</span>
+        </div>
+
+        <div class="split-section">
+          <div>
+            <form id="project-form" class="stack-form compact-form">
+              <label>
+                <span>New project</span>
+                <input id="project-name" name="name" type="text" placeholder="Cocek Tuning Lab">
+              </label>
+              <button type="submit">Create project</button>
+            </form>
+            <div id="projects-list" class="ledger"></div>
+          </div>
+
+          <div>
+            <form id="experiment-form" class="stack-form compact-form">
+              <label>
+                <span>Experiment name</span>
+                <input id="experiment-name" name="name" type="text" placeholder="Spring Session">
+              </label>
+              <label>
+                <span>Summary</span>
+                <textarea id="experiment-summary" name="summary" rows="3" placeholder="Watcher-enabled baseline flow"></textarea>
+              </label>
+              <label>
+                <span>Status</span>
+                <select id="experiment-status" name="status"></select>
+              </label>
+              <button type="submit" class="secondary">Create experiment</button>
+            </form>
+            <div id="experiments-list" class="ledger"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel runs-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Runbook</p>
+            <h2>Runs and metrics</h2>
+          </div>
+        </div>
+
+        <div class="split-section">
+          <div>
+            <form id="run-form" class="stack-form compact-form">
+              <label>
+                <span>Run display name</span>
+                <input id="run-display-name" name="displayName" type="text" placeholder="Run 01">
+              </label>
+              <label>
+                <span>Notes</span>
+                <textarea id="run-notes" name="notes" rows="3" placeholder="first pass"></textarea>
+              </label>
+              <label>
+                <span>Initial status</span>
+                <select id="run-status" name="status"></select>
+              </label>
+              <button type="submit">Create run</button>
+            </form>
+
+            <form id="run-status-form" class="stack-form compact-form tone-muted">
+              <label>
+                <span>Update selected run status</span>
+                <select id="run-status-next" name="status"></select>
+              </label>
+              <label>
+                <span>Status notes</span>
+                <input id="run-status-notes" name="notes" type="text" placeholder="watch should observe this">
+              </label>
+              <button type="submit" class="secondary">Update status</button>
+            </form>
+
+            <div id="runs-list" class="ledger"></div>
+          </div>
+
+          <div>
+            <form id="metric-form" class="stack-form compact-form">
+              <label>
+                <span>Metric name</span>
+                <input id="metric-name" name="metricName" type="text" placeholder="tempoDrift">
+              </label>
+              <div class="dual-field">
+                <label>
+                  <span>Value</span>
+                  <input id="metric-value" name="metricValue" type="number" step="any" placeholder="0.17">
+                </label>
+                <label>
+                  <span>Unit</span>
+                  <input id="metric-unit" name="metricUnit" type="text" placeholder="percent">
+                </label>
+              </div>
+              <button type="submit" class="secondary">Append metric</button>
+            </form>
+            <div id="metrics-list" class="ledger"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel outcomes-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Outcomes</p>
+            <h2>Artifacts, baselines, decisions</h2>
+          </div>
+        </div>
+
+        <div class="split-section">
+          <div>
+            <form id="artifact-form" class="stack-form compact-form">
+              <label>
+                <span>Artifact kind</span>
+                <select id="artifact-kind" name="kind"></select>
+              </label>
+              <label>
+                <span>File name</span>
+                <input id="artifact-file-name" name="fileName" type="text" placeholder="run.log">
+              </label>
+              <label>
+                <span>Content type</span>
+                <input id="artifact-content-type" name="contentType" type="text" placeholder="text/plain">
+              </label>
+              <label>
+                <span>Artifact text</span>
+                <textarea id="artifact-content" name="content" rows="4" placeholder="render complete"></textarea>
+              </label>
+              <button type="submit">Upload text artifact</button>
+            </form>
+            <div id="artifacts-list" class="ledger"></div>
+          </div>
+
+          <div>
+            <form id="baseline-form" class="stack-form compact-form tone-muted">
+              <div class="panel-note">
+                Promote the currently selected run to the currently selected experiment baseline.
+              </div>
+              <button id="baseline-button" type="submit" class="secondary">Promote baseline</button>
+            </form>
+
+            <form id="decision-form" class="stack-form compact-form">
+              <label>
+                <span>Decision title</span>
+                <input id="decision-title" name="title" type="text" placeholder="Adopt Run 01">
+              </label>
+              <label>
+                <span>Summary</span>
+                <textarea id="decision-summary" name="summary" rows="4" placeholder="Baseline is stable enough for review."></textarea>
+              </label>
+              <label>
+                <span>Status</span>
+                <select id="decision-status" name="status"></select>
+              </label>
+              <button type="submit">Record decision</button>
+            </form>
+            <div id="decisions-list" class="ledger"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel watch-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Realtime</p>
+            <h2>Watcher console</h2>
+          </div>
+          <div class="button-row">
+            <button id="watch-start-button" type="button">Start watch</button>
+            <button id="watch-refresh-button" type="button" class="ghost">Refresh snapshot</button>
+          </div>
+        </div>
+
+        <div class="watch-summary">
+          <article>
+            <span class="meta-label">Watch ID</span>
+            <code id="watch-id">No active watch</code>
+          </article>
+          <article>
+            <span class="meta-label">Connection</span>
+            <strong id="watch-connected">Idle</strong>
+          </article>
+          <article>
+            <span class="meta-label">Event count</span>
+            <strong id="watch-count">0</strong>
+          </article>
+        </div>
+
+        <div id="watch-events" class="ledger wide-ledger"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

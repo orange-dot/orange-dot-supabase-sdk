@@ -39,6 +39,9 @@ enabled = true
 [storage.buckets.integration-public]
 public = true
 
+[storage.buckets.research-artifacts]
+public = false
+
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
@@ -79,6 +82,11 @@ entrypoint = "./functions/orangedot-integration-smoke/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/orangedot-integration-failure/index.ts"
+
+[functions.research-promote-baseline]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/research-promote-baseline/index.ts"
 
 [analytics]
 enabled = true
