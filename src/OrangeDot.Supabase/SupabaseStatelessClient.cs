@@ -46,9 +46,17 @@ public sealed class SupabaseStatelessClient : ISupabaseStatelessClient
         return Create(snapshot);
     }
 
-    internal static SupabaseStatelessClient Create(LifecycleSnapshot snapshot, string? bearerToken = null)
+    internal static SupabaseStatelessClient Create(LifecycleSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+
+        return Create(snapshot, StatelessChildAuthorization.ForProjectKey(snapshot.AnonKey));
+    }
+
+    internal static SupabaseStatelessClient Create(LifecycleSnapshot snapshot, StatelessChildAuthorization authorization)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(authorization);
 
         var factory = new SupabaseStatelessChildClientFactory();
 
@@ -56,8 +64,8 @@ public sealed class SupabaseStatelessClient : ISupabaseStatelessClient
             snapshot,
             factory.CreateAuth(),
             factory.CreateAuthOptions(snapshot),
-            factory.CreatePostgrest(snapshot, bearerToken),
-            factory.CreateStorage(snapshot, bearerToken),
-            factory.CreateFunctions(snapshot, bearerToken));
+            factory.CreatePostgrest(snapshot, authorization),
+            factory.CreateStorage(snapshot, authorization),
+            factory.CreateFunctions(snapshot, authorization));
     }
 }

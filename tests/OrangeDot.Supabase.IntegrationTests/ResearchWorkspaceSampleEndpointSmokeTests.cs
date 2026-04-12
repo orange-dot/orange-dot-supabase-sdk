@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -123,6 +124,37 @@ public sealed class ResearchWorkspaceSampleEndpointSmokeTests
 
             Assert.Equal(userId, GetRequiredString(me.RootElement, "userId"));
             Assert.Equal(email, GetRequiredString(me.RootElement, "email"));
+        }
+        finally
+        {
+            KillProcess(process);
+        }
+    }
+
+    [LocalSupabaseFact]
+    public async Task Me_endpoint_rejects_forged_bearer_token_even_when_it_contains_a_subject()
+    {
+        var settings = IntegrationTestEnvironment.LoadSettings();
+        await IntegrationTestEnvironment.EnsureOptInAndResearchWorkspaceReachableAsync(settings);
+
+        var baseUrl = CreateBaseUrl();
+        using var process = StartSampleProcess(settings, baseUrl);
+        try
+        {
+            using var client = CreateHttpClient(baseUrl);
+
+            await WaitForHealthyAsync(client, process);
+
+            using var response = await client.SendAsync(CreateRequest(
+                HttpMethod.Get,
+                "/me",
+                accessToken: CreateForgedJwt("00000000-0000-0000-0000-000000000123", "forged@example.com")));
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+            using var json = JsonDocument.Parse(body);
+            Assert.Equal("auth_invalid", GetRequiredString(json.RootElement, "error"));
         }
         finally
         {
@@ -252,6 +284,150 @@ public sealed class ResearchWorkspaceSampleEndpointSmokeTests
                 $"/runs/{runId}/artifacts",
                 accessToken: editor.AccessToken);
             Assert.True(artifacts.RootElement.GetArrayLength() >= 1);
+        }
+        finally
+        {
+            KillProcess(process);
+        }
+    }
+
+    [LocalSupabaseFact]
+    public async Task Watcher_snapshot_rejects_forged_bearer_token_even_when_watch_exists()
+    {
+        var settings = IntegrationTestEnvironment.LoadSettings();
+        await IntegrationTestEnvironment.EnsureOptInAndResearchWorkspaceReachableAsync(settings);
+
+        var baseUrl = CreateBaseUrl();
+        using var process = StartSampleProcess(settings, baseUrl);
+        try
+        {
+            using var sampleClient = CreateHttpClient(baseUrl);
+            using var authClient = CreateHttpClient(settings.Url);
+
+            await WaitForHealthyAsync(sampleClient, process);
+
+            var owner = await CreateUserAsync(authClient, settings, "watch-owner");
+
+            using var organization = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                "/organizations",
+                new { name = "Watcher Auth Test" },
+                owner.AccessToken,
+                HttpStatusCode.Created);
+            var organizationId = GetRequiredString(organization.RootElement, "id");
+
+            using var project = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                $"/organizations/{organizationId}/projects",
+                new { name = "Realtime Trust" },
+                owner.AccessToken,
+                HttpStatusCode.Created);
+            var projectId = GetRequiredString(project.RootElement, "id");
+
+            using var experiment = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                $"/projects/{projectId}/experiments",
+                new { name = "Forged Watch", status = "active" },
+                owner.AccessToken,
+                HttpStatusCode.Created);
+            var experimentId = GetRequiredString(experiment.RootElement, "id");
+
+            using var watcher = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                $"/experiments/{experimentId}/watchers",
+                accessToken: owner.AccessToken,
+                expectedStatusCode: HttpStatusCode.Created);
+            var watchId = GetRequiredString(watcher.RootElement, "watchId");
+
+            using var forgedResponse = await sampleClient.SendAsync(CreateRequest(
+                HttpMethod.Get,
+                $"/watchers/{watchId}",
+                accessToken: CreateForgedJwt(owner.UserId, "forged@example.com")));
+            var forgedBody = await forgedResponse.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.Unauthorized, forgedResponse.StatusCode);
+
+            using var forgedJson = JsonDocument.Parse(forgedBody);
+            Assert.Equal("auth_invalid", GetRequiredString(forgedJson.RootElement, "error"));
+        }
+        finally
+        {
+            KillProcess(process);
+        }
+    }
+
+    [LocalSupabaseFact]
+    public async Task Watcher_can_be_deleted_and_returns_not_found_after_cleanup()
+    {
+        var settings = IntegrationTestEnvironment.LoadSettings();
+        await IntegrationTestEnvironment.EnsureOptInAndResearchWorkspaceReachableAsync(settings);
+
+        var baseUrl = CreateBaseUrl();
+        using var process = StartSampleProcess(settings, baseUrl);
+        try
+        {
+            using var sampleClient = CreateHttpClient(baseUrl);
+            using var authClient = CreateHttpClient(settings.Url);
+
+            await WaitForHealthyAsync(sampleClient, process);
+
+            var owner = await CreateUserAsync(authClient, settings, "watch-delete-owner");
+
+            using var organization = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                "/organizations",
+                new { name = "Watcher Cleanup Test" },
+                owner.AccessToken,
+                HttpStatusCode.Created);
+            var organizationId = GetRequiredString(organization.RootElement, "id");
+
+            using var project = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                $"/organizations/{organizationId}/projects",
+                new { name = "Cleanup Project" },
+                owner.AccessToken,
+                HttpStatusCode.Created);
+            var projectId = GetRequiredString(project.RootElement, "id");
+
+            using var experiment = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                $"/projects/{projectId}/experiments",
+                new { name = "Delete Watch", status = "active" },
+                owner.AccessToken,
+                HttpStatusCode.Created);
+            var experimentId = GetRequiredString(experiment.RootElement, "id");
+
+            using var watcher = await SendJsonAsync(
+                sampleClient,
+                HttpMethod.Post,
+                $"/experiments/{experimentId}/watchers",
+                accessToken: owner.AccessToken,
+                expectedStatusCode: HttpStatusCode.Created);
+            var watchId = GetRequiredString(watcher.RootElement, "watchId");
+
+            using var deleteResponse = await sampleClient.SendAsync(CreateRequest(
+                HttpMethod.Delete,
+                $"/watchers/{watchId}",
+                accessToken: owner.AccessToken));
+            Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+            using var afterDelete = await sampleClient.SendAsync(CreateRequest(
+                HttpMethod.Get,
+                $"/watchers/{watchId}",
+                accessToken: owner.AccessToken));
+            var body = await afterDelete.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.NotFound, afterDelete.StatusCode);
+
+            using var json = JsonDocument.Parse(body);
+            Assert.Equal("not_found", GetRequiredString(json.RootElement, "error"));
         }
         finally
         {
@@ -473,6 +649,20 @@ public sealed class ResearchWorkspaceSampleEndpointSmokeTests
         }
 
         return property.GetString() ?? throw new InvalidOperationException($"JSON property '{propertyName}' was null.");
+    }
+
+    private static string CreateForgedJwt(string subject, string email)
+    {
+        static string Encode(object value)
+        {
+            var json = JsonSerializer.Serialize(value);
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(json))
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
+
+        return $"{Encode(new { alg = "HS256", typ = "JWT" })}.{Encode(new { sub = subject, email, exp = 4_102_444_800L })}.forged-signature";
     }
 
     private static string FindRepoRoot()

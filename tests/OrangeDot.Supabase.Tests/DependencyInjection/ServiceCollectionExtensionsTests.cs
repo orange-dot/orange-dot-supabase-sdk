@@ -11,6 +11,8 @@ namespace OrangeDot.Supabase.Tests.DependencyInjection;
 
 public sealed class ServiceCollectionExtensionsTests
 {
+    private const string LegacyServiceRoleJwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature";
+
     [Fact]
     public void Add_supabase_hosted_throws_for_null_arguments()
     {
@@ -184,7 +186,9 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Equal("hosted-publishable-key", hostedClient.AnonKey);
         Assert.Equal("https://server.supabase.co", serverClient.Url);
         Assert.Equal("server-publishable-key", serverClient.AnonKey);
-        Assert.Equal("Bearer server-secret-key", Assert.IsType<global::Supabase.Storage.Client>(serverClient.Storage).Headers["Authorization"]);
+        var storage = Assert.IsType<global::Supabase.Storage.Client>(serverClient.Storage);
+        Assert.Equal("server-secret-key", storage.Headers["apikey"]);
+        Assert.DoesNotContain("Authorization", storage.Headers.Keys);
     }
 
     [Fact]
@@ -197,7 +201,7 @@ public sealed class ServiceCollectionExtensionsTests
             options.Url = "https://abc.supabase.co/";
 #pragma warning disable CS0618
             options.AnonKey = "legacy-anon-key";
-            options.ServiceRoleKey = "legacy-service-role-key";
+            options.ServiceRoleKey = LegacyServiceRoleJwt;
 #pragma warning restore CS0618
         });
 
@@ -207,7 +211,9 @@ public sealed class ServiceCollectionExtensionsTests
         var client = factory.CreateService();
 
         Assert.Equal("legacy-anon-key", client.AnonKey);
-        Assert.Equal("Bearer legacy-service-role-key", Assert.IsType<global::Supabase.Functions.Client>(client.Functions).GetHeaders!()["Authorization"]);
+        var functions = Assert.IsType<global::Supabase.Functions.Client>(client.Functions);
+        Assert.Equal(LegacyServiceRoleJwt, functions.GetHeaders!()["apikey"]);
+        Assert.Equal($"Bearer {LegacyServiceRoleJwt}", functions.GetHeaders!()["Authorization"]);
     }
 
     private sealed record OptionSeed(string Url, string PublishableKey);

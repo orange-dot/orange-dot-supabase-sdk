@@ -12,13 +12,13 @@ public sealed class SupabaseChildClientFactoryTests
     public void Factory_creates_real_child_clients_from_snapshotted_urls_and_anon_key()
     {
         var urls = SupabaseUrls.FromBaseUrl("https://abc.supabase.co");
-        var snapshot = new LifecycleSnapshot(urls.NormalizedBaseUrl, "anon-key", urls);
+        var snapshot = new LifecycleSnapshot(urls.NormalizedBaseUrl, "publishable-key", urls);
         var factory = new SupabaseChildClientFactory();
 
         var children = factory.Create(snapshot);
 
         Assert.Equal(urls.AuthUrl, children.Auth.Options.Url);
-        Assert.Equal("anon-key", children.Auth.Options.Headers["apikey"]);
+        Assert.Equal("publishable-key", children.Auth.Options.Headers["apikey"]);
         Assert.DoesNotContain("Authorization", children.Auth.GetHeaders!().Keys);
         Assert.NotNull(children.Auth.TokenRefresh);
         Assert.DoesNotContain(
@@ -31,13 +31,13 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.NotNull(children.Postgrest.GetHeaders);
 
         Assert.Equal(urls.RealtimeUrl, ReadPrivateStringField(children.Realtime, "_realtimeUrl"));
-        Assert.Equal("anon-key", children.Realtime.Options.Headers["apikey"]);
-        Assert.Equal("anon-key", children.Realtime.Options.Parameters.ApiKey);
+        Assert.Equal("publishable-key", children.Realtime.Options.Headers["apikey"]);
+        Assert.Equal("publishable-key", children.Realtime.Options.Parameters.ApiKey);
         Assert.DoesNotContain("Authorization", children.Realtime.GetHeaders!().Keys);
 
         Assert.Equal(urls.StorageUrl, ReadPublicOrNonPublicStringProperty(children.Storage, "Url"));
-        Assert.Equal("anon-key", children.Storage.Headers["apikey"]);
-        Assert.Equal("Bearer anon-key", children.Storage.Headers["Authorization"]);
+        Assert.Equal("publishable-key", children.Storage.Headers["apikey"]);
+        Assert.DoesNotContain("Authorization", children.Storage.Headers.Keys);
 
         Assert.Equal(urls.FunctionsUrl, ReadPrivateStringField(children.Functions, "_baseUrl"));
         Assert.DoesNotContain("Authorization", children.Functions.GetHeaders!().Keys);
@@ -55,8 +55,22 @@ public sealed class SupabaseChildClientFactoryTests
         Assert.DoesNotContain("Authorization", children.Auth.GetHeaders!().Keys);
         Assert.DoesNotContain("Authorization", children.Postgrest.GetHeaders!().Keys);
         Assert.DoesNotContain("Authorization", children.Realtime.GetHeaders!().Keys);
-        Assert.Equal("Bearer anon-key", children.Storage.Headers["Authorization"]);
+        Assert.DoesNotContain("Authorization", children.Storage.Headers.Keys);
         Assert.DoesNotContain("Authorization", children.Functions.GetHeaders!().Keys);
+    }
+
+    [Fact]
+    public void Factory_preserves_legacy_storage_bearer_for_jwt_project_keys()
+    {
+        var urls = SupabaseUrls.FromBaseUrl("https://abc.supabase.co");
+        var legacyAnonKey = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.signature";
+        var snapshot = new LifecycleSnapshot(urls.NormalizedBaseUrl, legacyAnonKey, urls);
+        var factory = new SupabaseChildClientFactory();
+
+        var children = factory.Create(snapshot);
+
+        Assert.Equal(legacyAnonKey, children.Storage.Headers["apikey"]);
+        Assert.Equal($"Bearer {legacyAnonKey}", children.Storage.Headers["Authorization"]);
     }
 
     [Fact]

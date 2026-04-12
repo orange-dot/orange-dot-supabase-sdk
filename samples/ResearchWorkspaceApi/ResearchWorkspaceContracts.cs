@@ -184,13 +184,15 @@ public sealed record DecisionSummary(
 public sealed record RunWatchStartedResponse(
     string WatchId,
     string ExperimentId,
-    int EventCount);
+    int EventCount,
+    DateTime ExpiresAt);
 
 public sealed record RunWatchSnapshot(
     string WatchId,
     string ExperimentId,
     bool Connected,
-    IReadOnlyList<RunWatchEvent> Events);
+    IReadOnlyList<RunWatchEvent> Events,
+    DateTime ExpiresAt);
 
 public sealed record RunWatchEvent(
     string EventType,

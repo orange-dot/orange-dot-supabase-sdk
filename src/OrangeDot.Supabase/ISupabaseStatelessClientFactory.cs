@@ -17,7 +17,8 @@ public interface ISupabaseStatelessClientFactory
     ISupabaseStatelessClient CreateForUser(string accessToken);
 
     /// <summary>
-    /// Creates a fresh stateless client whose PostgREST, Storage, and Functions children use the configured service-role bearer token.
+    /// Creates a fresh stateless client whose PostgREST, Storage, and Functions children use the configured privileged key as their API key.
+    /// Legacy JWT-shaped service-role keys are also mirrored into bearer authorization for compatibility with local and self-hosted stacks.
     /// </summary>
     ISupabaseStatelessClient CreateService();
 }
