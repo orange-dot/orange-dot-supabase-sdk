@@ -31,9 +31,11 @@ public sealed class ResearchWorkspaceIdentityResolver
                 throw new AuthenticationException("Bearer token did not resolve to a user.");
             }
 
+            var email = user?.Email;
+
             return new ResearchWorkspaceIdentity(
                 userId,
-                string.IsNullOrWhiteSpace(user.Email) ? null : user.Email.Trim(),
+                string.IsNullOrWhiteSpace(email) ? null : email.Trim(),
                 accessToken);
         }
         catch (GotrueException ex) when (ex.StatusCode is 401 or 403 or 422)
