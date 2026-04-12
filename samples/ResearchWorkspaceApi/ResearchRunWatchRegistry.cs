@@ -10,9 +10,15 @@ namespace ResearchWorkspaceApi;
 
 public sealed class ResearchRunWatchRegistry : IAsyncDisposable
 {
+    private const int MaxEventsPerWatch = 64;
+    private static readonly TimeSpan WatchIdleTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(1);
+
     private readonly SupabaseServerOptions _options;
     private readonly ILogger<ResearchRunWatchRegistry> _logger;
     private readonly ConcurrentDictionary<string, ActiveRunWatch> _watches = new(StringComparer.Ordinal);
+    private readonly CancellationTokenSource _disposeTokenSource = new();
+    private readonly Task _cleanupLoop;
 
     public ResearchRunWatchRegistry(
         IOptions<SupabaseServerOptions> options,
@@ -20,15 +26,21 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
     {
         _options = options.Value;
         _logger = logger;
+        _cleanupLoop = RunCleanupLoopAsync(_disposeTokenSource.Token);
     }
 
-    public async Task<RunWatchStartedResponse> StartAsync(string accessToken, string experimentId)
+    public async Task<RunWatchStartedResponse> StartAsync(ResearchWorkspaceIdentity identity, string experimentId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(accessToken);
+        ArgumentNullException.ThrowIfNull(identity);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity.AccessToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity.UserId);
         ArgumentException.ThrowIfNullOrWhiteSpace(experimentId);
+
+        await CleanupExpiredWatchesAsync(DateTime.UtcNow);
 
         var publishableKey = _options.PublishableKey
             ?? throw new InvalidOperationException("Supabase publishable key is not configured.");
+        var accessToken = identity.AccessToken;
         var realtimeUrl = SupabaseUrls.FromBaseUrl(
             _options.Url ?? throw new InvalidOperationException("Supabase URL is not configured.")).RealtimeUrl;
         var clientOptions = new global::Supabase.Realtime.ClientOptions();
@@ -47,7 +59,6 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
         client.SetAuth(accessToken);
 
         var watchId = Guid.NewGuid().ToString("N");
-        var userId = RequestAuth.GetRequiredUserId(accessToken);
         var debugHandler = new global::Supabase.Realtime.Interfaces.IRealtimeDebugger.DebugEventHandler(
             (_, message, exception) =>
             {
@@ -55,7 +66,7 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
             });
 
         client.AddDebugHandler(debugHandler);
-        var watch = new ActiveRunWatch(watchId, userId, experimentId, client, debugHandler);
+        var watch = new ActiveRunWatch(watchId, identity.UserId, experimentId, client, debugHandler, MaxEventsPerWatch);
 
         try
         {
@@ -86,7 +97,7 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
                         model.Status,
                         experimentId);
 
-                    watch.Events.Enqueue(new RunWatchEvent(
+                    watch.RecordEvent(new RunWatchEvent(
                         change.Payload?.Data?.Type.ToString() ?? "Unknown",
                         model.Id,
                         model.Status,
@@ -109,7 +120,7 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
                 experimentId,
                 watch.Connected);
 
-            return new RunWatchStartedResponse(watchId, experimentId, 0);
+            return new RunWatchStartedResponse(watchId, experimentId, watch.EventCount, watch.ExpiresAt);
         }
         catch
         {
@@ -118,8 +129,11 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
         }
     }
 
-    public RunWatchSnapshot? GetSnapshot(string watchId, string requestingUserId)
+    public async Task<RunWatchSnapshot?> GetSnapshotAsync(string watchId, string requestingUserId)
     {
+        var now = DateTime.UtcNow;
+        await CleanupExpiredWatchesAsync(now);
+
         if (!_watches.TryGetValue(watchId, out var watch))
         {
             return null;
@@ -130,37 +144,129 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
             throw new UnauthorizedAccessException($"Run watch '{watchId}' is not available to the current user.");
         }
 
+        if (watch.IsExpired(now))
+        {
+            await RemoveWatchAsync(watch, "expired-on-read");
+            return null;
+        }
+
+        watch.Touch(now);
+
         return new RunWatchSnapshot(
             watch.WatchId,
             watch.ExperimentId,
             watch.Connected,
-            watch.Events.ToArray());
+            watch.GetEventsSnapshot(),
+            watch.ExpiresAt);
+    }
+
+    public async Task<bool> DeleteAsync(string watchId, string requestingUserId)
+    {
+        var now = DateTime.UtcNow;
+        await CleanupExpiredWatchesAsync(now);
+
+        if (!_watches.TryGetValue(watchId, out var watch))
+        {
+            return false;
+        }
+
+        if (!string.Equals(watch.UserId, requestingUserId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException($"Run watch '{watchId}' is not available to the current user.");
+        }
+
+        return await RemoveWatchAsync(watch, "deleted");
     }
 
     public async ValueTask DisposeAsync()
     {
+        _disposeTokenSource.Cancel();
+
+        try
+        {
+            await _cleanupLoop;
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposal intentionally cancels the cleanup loop.
+        }
+
         foreach (var watch in _watches.Values)
         {
             await watch.DisposeAsync();
         }
 
         _watches.Clear();
+        _disposeTokenSource.Dispose();
+    }
+
+    private async Task RunCleanupLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(CleanupInterval, cancellationToken);
+                await CleanupExpiredWatchesAsync(DateTime.UtcNow);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown path.
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Background watch cleanup loop stopped unexpectedly.");
+        }
+    }
+
+    private async Task CleanupExpiredWatchesAsync(DateTime utcNow)
+    {
+        foreach (var watch in _watches.Values)
+        {
+            if (watch.IsExpired(utcNow))
+            {
+                await RemoveWatchAsync(watch, "expired");
+            }
+        }
+    }
+
+    private async Task<bool> RemoveWatchAsync(ActiveRunWatch watch, string reason)
+    {
+        if (!_watches.TryRemove(watch.WatchId, out var removed))
+        {
+            return false;
+        }
+
+        await removed.DisposeAsync();
+        _logger.LogInformation(
+            "Removed research run watch {WatchId} for experiment {ExperimentId}. Reason={Reason}.",
+            removed.WatchId,
+            removed.ExperimentId,
+            reason);
+
+        return true;
     }
 
     private sealed class ActiveRunWatch : IAsyncDisposable
     {
+        private long _lastTouchedTicks;
+
         public ActiveRunWatch(
             string watchId,
             string userId,
             string experimentId,
             global::Supabase.Realtime.Client client,
-            global::Supabase.Realtime.Interfaces.IRealtimeDebugger.DebugEventHandler debugHandler)
+            global::Supabase.Realtime.Interfaces.IRealtimeDebugger.DebugEventHandler debugHandler,
+            int maxEvents)
         {
             WatchId = watchId;
             UserId = userId;
             ExperimentId = experimentId;
             Client = client;
             DebugHandler = debugHandler;
+            Events = new BoundedRunWatchEvents(maxEvents);
+            _lastTouchedTicks = DateTime.UtcNow.Ticks;
         }
 
         public string WatchId { get; }
@@ -173,11 +279,38 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
 
         public global::Supabase.Realtime.Interfaces.IRealtimeDebugger.DebugEventHandler DebugHandler { get; }
 
-        public ConcurrentQueue<RunWatchEvent> Events { get; } = new();
+        public BoundedRunWatchEvents Events { get; }
 
         public IRealtimeChannel? Channel { get; set; }
 
         public bool Connected { get; set; }
+
+        public int EventCount => Events.Count;
+
+        public DateTime ExpiresAt => LastTouchedAtUtc.Add(WatchIdleTtl);
+
+        private DateTime LastTouchedAtUtc => new(Interlocked.Read(ref _lastTouchedTicks), DateTimeKind.Utc);
+
+        public void RecordEvent(RunWatchEvent item)
+        {
+            Events.Append(item);
+            Touch(item.ObservedAt);
+        }
+
+        public void Touch(DateTime utcNow)
+        {
+            Interlocked.Exchange(ref _lastTouchedTicks, utcNow.Ticks);
+        }
+
+        public bool IsExpired(DateTime utcNow)
+        {
+            return utcNow - LastTouchedAtUtc >= WatchIdleTtl;
+        }
+
+        public IReadOnlyList<RunWatchEvent> GetEventsSnapshot()
+        {
+            return Events.Snapshot();
+        }
 
         public ValueTask DisposeAsync()
         {
@@ -200,6 +333,55 @@ public sealed class ResearchRunWatchRegistry : IAsyncDisposable
             }
 
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class BoundedRunWatchEvents
+    {
+        private readonly int _capacity;
+        private readonly Queue<RunWatchEvent> _items = new();
+        private readonly object _gate = new();
+
+        public BoundedRunWatchEvents(int capacity)
+        {
+            if (capacity <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity));
+            }
+
+            _capacity = capacity;
+        }
+
+        public int Count
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _items.Count;
+                }
+            }
+        }
+
+        public void Append(RunWatchEvent item)
+        {
+            lock (_gate)
+            {
+                if (_items.Count == _capacity)
+                {
+                    _items.Dequeue();
+                }
+
+                _items.Enqueue(item);
+            }
+        }
+
+        public IReadOnlyList<RunWatchEvent> Snapshot()
+        {
+            lock (_gate)
+            {
+                return _items.ToArray();
+            }
         }
     }
 }

@@ -6,6 +6,8 @@ namespace OrangeDot.Supabase.Tests.Stateless;
 
 public sealed class SupabaseStatelessClientFactoryTests
 {
+    private const string LegacyServiceRoleJwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature";
+
     [Fact]
     public void Create_anon_returns_fresh_instances()
     {
@@ -126,9 +128,12 @@ public sealed class SupabaseStatelessClientFactoryTests
         var functions = Assert.IsType<global::Supabase.Functions.Client>(client.Functions);
         var storage = Assert.IsType<global::Supabase.Storage.Client>(client.Storage);
 
-        Assert.Equal("Bearer secret-key", postgrest.GetHeaders!()["Authorization"]);
-        Assert.Equal("Bearer secret-key", functions.GetHeaders!()["Authorization"]);
-        Assert.Equal("Bearer secret-key", storage.Headers["Authorization"]);
+        Assert.Equal("secret-key", postgrest.GetHeaders!()["apikey"]);
+        Assert.Equal("secret-key", functions.GetHeaders!()["apikey"]);
+        Assert.Equal("secret-key", storage.Headers["apikey"]);
+        Assert.DoesNotContain("Authorization", postgrest.GetHeaders!().Keys);
+        Assert.DoesNotContain("Authorization", functions.GetHeaders!().Keys);
+        Assert.DoesNotContain("Authorization", storage.Headers.Keys);
     }
 
     [Fact]
@@ -170,15 +175,19 @@ public sealed class SupabaseStatelessClientFactoryTests
         {
             options.SecretKey = null;
 #pragma warning disable CS0618
-            options.ServiceRoleKey = "legacy-service-role-key";
+            options.ServiceRoleKey = LegacyServiceRoleJwt;
 #pragma warning restore CS0618
         });
         var factory = provider.GetRequiredService<ISupabaseStatelessClientFactory>();
 
         var client = factory.CreateService();
         var functions = Assert.IsType<global::Supabase.Functions.Client>(client.Functions);
+        var storage = Assert.IsType<global::Supabase.Storage.Client>(client.Storage);
 
-        Assert.Equal("Bearer legacy-service-role-key", functions.GetHeaders!()["Authorization"]);
+        Assert.Equal(LegacyServiceRoleJwt, functions.GetHeaders!()["apikey"]);
+        Assert.Equal($"Bearer {LegacyServiceRoleJwt}", functions.GetHeaders!()["Authorization"]);
+        Assert.Equal(LegacyServiceRoleJwt, storage.Headers["apikey"]);
+        Assert.Equal($"Bearer {LegacyServiceRoleJwt}", storage.Headers["Authorization"]);
     }
 
     private static ServiceProvider CreateProvider(Action<SupabaseServerOptions>? configure = null)

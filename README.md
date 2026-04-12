@@ -201,6 +201,7 @@ Server factory notes:
 - callers own delegated-token lifecycle and expiry handling
 - `AuthOptions` stays project-level; delegated identity is carried by the factory-created child-client headers, not by `AuthOptions`
 - prefer `PublishableKey` for project-level client configuration and `SecretKey` only for privileged server operations
+- `CreateService()` uses the configured privileged key as the child-client `apikey`; legacy JWT service-role keys are also mirrored into `Authorization` for local/self-hosted compatibility
 - the current server path is correct for isolated per-operation usage, but not yet optimized for very high client churn
 - Storage still inherits upstream static-helper constraints under concurrent mixed-option initialization; PR21 does not change that module behavior
 

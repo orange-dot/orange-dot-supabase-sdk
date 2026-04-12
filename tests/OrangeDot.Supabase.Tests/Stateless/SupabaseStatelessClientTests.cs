@@ -10,7 +10,7 @@ public sealed class SupabaseStatelessClientTests
     [Fact]
     public void Create_throws_for_null_options()
     {
-        Assert.Throws<ArgumentNullException>(() => SupabaseStatelessClient.Create(null!));
+        Assert.Throws<ArgumentNullException>(() => SupabaseStatelessClient.Create((SupabaseOptions)null!));
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class SupabaseStatelessClientTests
 
         Assert.Equal(client.Urls.StorageUrl, ReadPublicOrNonPublicStringProperty(storage, "Url"));
         Assert.Equal("publishable-key", storage.Headers["apikey"]);
-        Assert.Equal("Bearer publishable-key", storage.Headers["Authorization"]);
+        Assert.DoesNotContain("Authorization", storage.Headers.Keys);
 
         Assert.Equal(client.Urls.FunctionsUrl, ReadPrivateStringField(functions, "_baseUrl"));
         Assert.Equal("publishable-key", functions.GetHeaders!()["apikey"]);

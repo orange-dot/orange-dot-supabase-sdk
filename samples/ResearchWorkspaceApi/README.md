@@ -59,6 +59,7 @@ Protected endpoints now return JSON error payloads in this shape:
 ```
 
 The embedded cockpit uses sample-scoped `/ui/auth/*` helpers to create or exchange a local Supabase Auth session, then stores the returned access token in browser storage and calls the rest of the API with `Authorization: Bearer ...`.
+Protected sample endpoints verify that bearer token against Supabase Auth before they trust caller identity for `/me` or watcher ownership decisions.
 Everything after that token exchange goes through the sample API, whose research workflow is backed by the Orange Dot SDK on the server.
 
 ## Browser workflow
@@ -212,6 +213,7 @@ curl -sS \
 ```
 
 The watcher endpoint intentionally waits a few seconds before returning so the local Supabase Realtime channel is fully armed before you trigger the first status update.
+Watches are caller-scoped, keep a bounded event buffer, expire after idle time, and can also be explicitly deleted.
 
 Update the run status:
 
@@ -232,6 +234,15 @@ curl -sS \
 ```
 
 Watch snapshots are scoped to the user who created the watch. Fetching another user's `<watch-id>` returns `403`.
+
+Delete a watch when you're done:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer <editor-access-token>" \
+  -X DELETE \
+  http://127.0.0.1:5050/watchers/<watch-id>
+```
 
 ## Live verification
 

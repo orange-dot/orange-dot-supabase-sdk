@@ -27,64 +27,73 @@ internal sealed class SupabaseStatelessChildClientFactory
         return options;
     }
 
-    internal global::Supabase.Postgrest.Client CreatePostgrest(LifecycleSnapshot snapshot, string? bearerToken = null)
+    internal global::Supabase.Postgrest.Client CreatePostgrest(
+        LifecycleSnapshot snapshot,
+        StatelessChildAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(authorization);
 
         // Keep ClientOptions.Headers empty in the stateless path so GetHeaders stays authoritative.
         return new global::Supabase.Postgrest.Client(
             snapshot.Urls.RestUrl,
             new global::Supabase.Postgrest.ClientOptions())
         {
-            GetHeaders = () => CreateHeaders(snapshot.AnonKey, bearerToken)
+            GetHeaders = () => CreateHeaders(authorization)
         };
     }
 
-    internal global::Supabase.Storage.Client CreateStorage(LifecycleSnapshot snapshot, string? bearerToken = null)
+    internal global::Supabase.Storage.Client CreateStorage(
+        LifecycleSnapshot snapshot,
+        StatelessChildAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(authorization);
 
         // Storage merges runtime headers behind constructor headers, so delegated auth must be fixed at construction time.
         return new global::Supabase.Storage.Client(
             snapshot.Urls.StorageUrl,
-            headers: CreateStorageHeaders(snapshot.AnonKey, bearerToken));
+            headers: CreateStorageHeaders(authorization));
     }
 
-    internal global::Supabase.Functions.Client CreateFunctions(LifecycleSnapshot snapshot, string? bearerToken = null)
+    internal global::Supabase.Functions.Client CreateFunctions(
+        LifecycleSnapshot snapshot,
+        StatelessChildAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(authorization);
 
         // The stateless server path binds identity at client creation time, not through per-invoke token parameters.
         return new global::Supabase.Functions.Client(snapshot.Urls.FunctionsUrl)
         {
-            GetHeaders = () => CreateHeaders(snapshot.AnonKey, bearerToken)
+            GetHeaders = () => CreateHeaders(authorization)
         };
     }
 
-    private static Dictionary<string, string> CreateHeaders(string apiKey, string? bearerToken)
+    private static Dictionary<string, string> CreateHeaders(StatelessChildAuthorization authorization)
     {
-        var headers = SupabaseChildClientFactory.CreateStaticHeaders(apiKey);
-        if (!string.IsNullOrWhiteSpace(bearerToken))
+        var headers = SupabaseChildClientFactory.CreateStaticHeaders(authorization.ApiKey);
+        if (!string.IsNullOrWhiteSpace(authorization.BearerToken))
         {
-            headers["Authorization"] = $"Bearer {bearerToken}";
+            headers["Authorization"] = $"Bearer {authorization.BearerToken}";
         }
 
         return headers;
     }
 
-    private static Dictionary<string, string> CreateStorageHeaders(string apiKey, string? bearerToken)
+    private static Dictionary<string, string> CreateStorageHeaders(StatelessChildAuthorization authorization)
     {
-        if (string.IsNullOrWhiteSpace(bearerToken))
+        if (string.IsNullOrWhiteSpace(authorization.BearerToken))
         {
-            return SupabaseChildClientFactory.CreateStorageHeaders(apiKey);
+            return SupabaseChildClientFactory.CreateStorageHeaders(authorization.ApiKey);
         }
 
         return SupabaseChildClientFactory.CreateStorageHeaders(
-            apiKey,
+            authorization.ApiKey,
             new Dictionary<string, string>
             {
-                ["apikey"] = apiKey,
-                ["Authorization"] = $"Bearer {bearerToken}"
+                ["apikey"] = authorization.ApiKey,
+                ["Authorization"] = $"Bearer {authorization.BearerToken}"
             });
     }
 }

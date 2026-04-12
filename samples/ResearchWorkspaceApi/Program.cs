@@ -40,6 +40,7 @@ builder.Services.AddSupabaseServer(options =>
     options.PublishableKey = builder.Configuration["Supabase:PublishableKey"];
     options.SecretKey = builder.Configuration["Supabase:SecretKey"];
 });
+builder.Services.AddSingleton<ResearchWorkspaceIdentityResolver>();
 builder.Services.AddSingleton<ResearchRunWatchRegistry>();
 builder.Services.AddSingleton<ResearchWorkspaceService>();
 
@@ -111,10 +112,16 @@ DocumentPublic<UiSessionResponse>(
     StatusCodes.Status401Unauthorized);
 
 DocumentProtected<MeResponse>(
-    app.MapGet("/me", (HttpRequest request, ResearchWorkspaceService service) =>
+    app.MapGet("/me", async (HttpRequest request, ResearchWorkspaceService service, ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
-        return authError ?? Results.Ok(service.GetMe(accessToken));
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        return Results.Ok(service.GetMe(identity));
     }),
     "Inspect the delegated caller",
     "Returns the user id and email extracted from the delegated bearer token.");
@@ -135,7 +142,11 @@ DocumentProtected<IReadOnlyList<OrganizationSummary>>(
     "Returns the organizations visible to the delegated caller, including the caller's effective membership role.");
 
 DocumentProtected<OrganizationSummary>(
-    app.MapPost("/organizations", async (HttpRequest request, CreateOrganizationRequest body, ResearchWorkspaceService service) =>
+    app.MapPost("/organizations", async (
+        HttpRequest request,
+        CreateOrganizationRequest body,
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
         if (authError is not null)
@@ -143,7 +154,8 @@ DocumentProtected<OrganizationSummary>(
             return authError;
         }
 
-        var organization = await service.CreateOrganizationAsync(accessToken, RequestAuth.GetRequiredUserId(accessToken), body);
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        var organization = await service.CreateOrganizationAsync(accessToken, identity.UserId, body);
         return Results.Created($"/organizations/{organization.Id}", organization);
     }),
     "Create an organization",
@@ -288,7 +300,8 @@ DocumentProtected<RunSummary>(
         HttpRequest request,
         string experimentId,
         CreateRunRequest body,
-        ResearchWorkspaceService service) =>
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
         if (authError is not null)
@@ -296,7 +309,8 @@ DocumentProtected<RunSummary>(
             return authError;
         }
 
-        var run = await service.CreateRunAsync(accessToken, RequestAuth.GetRequiredUserId(accessToken), experimentId, body);
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        var run = await service.CreateRunAsync(accessToken, identity.UserId, experimentId, body);
         return Results.Created($"/runs/{run.Id}", run);
     }),
     "Create a run",
@@ -360,7 +374,8 @@ DocumentProtected<ArtifactUploadResponse>(
         HttpRequest request,
         string runId,
         CreateArtifactUploadRequest body,
-        ResearchWorkspaceService service) =>
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
         if (authError is not null)
@@ -368,7 +383,8 @@ DocumentProtected<ArtifactUploadResponse>(
             return authError;
         }
 
-        var artifact = await service.CreateArtifactUploadAsync(accessToken, RequestAuth.GetRequiredUserId(accessToken), runId, body);
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        var artifact = await service.CreateArtifactUploadAsync(accessToken, identity.UserId, runId, body);
         return Results.Created($"/runs/{runId}/artifacts/{artifact.ArtifactId}", artifact);
     }),
     "Create a signed upload URL for an artifact",
@@ -381,7 +397,8 @@ DocumentProtected<ArtifactSummary>(
         HttpRequest request,
         string runId,
         UploadArtifactTextRequest body,
-        ResearchWorkspaceService service) =>
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
         if (authError is not null)
@@ -389,7 +406,8 @@ DocumentProtected<ArtifactSummary>(
             return authError;
         }
 
-        var artifact = await service.UploadTextArtifactAsync(accessToken, RequestAuth.GetRequiredUserId(accessToken), runId, body);
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        var artifact = await service.UploadTextArtifactAsync(accessToken, identity.UserId, runId, body);
         return Results.Created($"/runs/{runId}/artifacts/{artifact.Id}", artifact);
     }),
     "Upload a text artifact",
@@ -436,7 +454,8 @@ DocumentProtected<DecisionSummary>(
         HttpRequest request,
         string projectId,
         CreateDecisionRequest body,
-        ResearchWorkspaceService service) =>
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
         if (authError is not null)
@@ -444,7 +463,8 @@ DocumentProtected<DecisionSummary>(
             return authError;
         }
 
-        var decision = await service.CreateDecisionAsync(accessToken, RequestAuth.GetRequiredUserId(accessToken), projectId, body);
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        var decision = await service.CreateDecisionAsync(accessToken, identity.UserId, projectId, body);
         return Results.Created($"/projects/{projectId}/decisions/{decision.Id}", decision);
     }),
     "Create a decision",
@@ -474,7 +494,11 @@ DocumentProtected<PromoteBaselineResponse>(
     StatusCodes.Status404NotFound);
 
 DocumentProtected<RunWatchStartedResponse>(
-    app.MapPost("/experiments/{experimentId}/watchers", async (HttpRequest request, string experimentId, ResearchWorkspaceService service) =>
+    app.MapPost("/experiments/{experimentId}/watchers", async (
+        HttpRequest request,
+        string experimentId,
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
         if (authError is not null)
@@ -482,7 +506,8 @@ DocumentProtected<RunWatchStartedResponse>(
             return authError;
         }
 
-        var response = await service.StartRunWatchAsync(accessToken, experimentId);
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        var response = await service.StartRunWatchAsync(identity, experimentId);
         return Results.Created($"/watchers/{response.WatchId}", response);
     }),
     "Start a realtime run watcher",
@@ -491,14 +516,45 @@ DocumentProtected<RunWatchStartedResponse>(
     StatusCodes.Status404NotFound);
 
 DocumentProtected<RunWatchSnapshot>(
-    app.MapGet("/watchers/{watchId}", (HttpRequest request, string watchId, ResearchWorkspaceService service) =>
+    app.MapGet("/watchers/{watchId}", async (
+        HttpRequest request,
+        string watchId,
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
     {
         var authError = RequireAccessToken(request, out var accessToken);
-        return authError ?? Results.Ok(service.GetRunWatchSnapshot(watchId, RequestAuth.GetRequiredUserId(accessToken)));
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        return Results.Ok(await service.GetRunWatchSnapshotAsync(watchId, identity));
     }),
     "Fetch a watcher snapshot",
     "Returns the current event buffer for a caller-owned watcher.",
     StatusCodes.Status200OK,
+    StatusCodes.Status404NotFound);
+
+DocumentProtectedNoContent(
+    app.MapDelete("/watchers/{watchId}", async (
+        HttpRequest request,
+        string watchId,
+        ResearchWorkspaceService service,
+        ResearchWorkspaceIdentityResolver identities) =>
+    {
+        var authError = RequireAccessToken(request, out var accessToken);
+        if (authError is not null)
+        {
+            return authError;
+        }
+
+        var identity = await identities.ResolveRequiredUserAsync(accessToken);
+        await service.DeleteRunWatchAsync(watchId, identity);
+        return Results.NoContent();
+    }),
+    "Delete a watcher",
+    "Stops a caller-owned watcher and releases its realtime resources.",
     StatusCodes.Status404NotFound);
 
 app.Run();
@@ -571,6 +627,35 @@ static RouteHandlerBuilder DocumentProtected<TResponse>(
 
     builder.WithMetadata(ResearchWorkspaceBearerOperationFilter.RequiresAccessToken);
     return DocumentPublic<TResponse>(builder, summary, description, "Research Workspace", successStatusCode, errorStatuses.ToArray());
+}
+
+static RouteHandlerBuilder DocumentProtectedNoContent(
+    RouteHandlerBuilder builder,
+    string summary,
+    string description,
+    params int[] additionalErrorStatusCodes)
+{
+    var errorStatuses = new HashSet<int>(additionalErrorStatusCodes)
+    {
+        StatusCodes.Status400BadRequest,
+        StatusCodes.Status401Unauthorized,
+        StatusCodes.Status403Forbidden
+    };
+
+    builder
+        .WithTags("Research Workspace")
+        .WithSummary(summary)
+        .WithDescription(description)
+        .WithMetadata(ResearchWorkspaceBearerOperationFilter.RequiresAccessToken)
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces<ApiErrorResponse>(StatusCodes.Status500InternalServerError);
+
+    foreach (var statusCode in errorStatuses.Distinct())
+    {
+        builder.Produces<ApiErrorResponse>(statusCode);
+    }
+
+    return builder;
 }
 
 static ApiErrorResponse CreateErrorResponse(Exception? exception, string traceId)

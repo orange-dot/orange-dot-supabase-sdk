@@ -111,8 +111,8 @@ public sealed class SupabaseSessionPersistenceTests
 
         Assert.DoesNotContain("Authorization", auth.GetHeaders!().Keys);
         Assert.DoesNotContain("Authorization", postgrest.GetHeaders!().Keys);
-        Assert.Equal("Bearer publishable-key", storage.Headers["Authorization"]);
         Assert.Equal("publishable-key", storage.Headers["apikey"]);
+        Assert.DoesNotContain("Authorization", storage.Headers.Keys);
         Assert.DoesNotContain("Authorization", functions.GetHeaders!().Keys);
     }
 

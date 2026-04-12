@@ -21,17 +21,23 @@ internal sealed class SupabaseStatelessClientFactory : ISupabaseStatelessClientF
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accessToken);
 
-        return SupabaseStatelessClient.Create(CreateSnapshot(nameof(CreateForUser)), accessToken);
+        var snapshot = CreateSnapshot(nameof(CreateForUser));
+        return SupabaseStatelessClient.Create(
+            snapshot,
+            StatelessChildAuthorization.ForDelegatedUser(snapshot.AnonKey, accessToken));
     }
 
     public ISupabaseStatelessClient CreateService()
     {
+        var snapshot = CreateSnapshot(nameof(CreateService));
         var secretKey = SupabaseKeyResolver.ResolvePrivilegedKey(
             _options.Value.ConfiguredSecretKey,
             _options.Value.ConfiguredServiceRoleKey,
             nameof(CreateService));
 
-        return SupabaseStatelessClient.Create(CreateSnapshot(nameof(CreateService)), secretKey);
+        return SupabaseStatelessClient.Create(
+            snapshot,
+            StatelessChildAuthorization.ForPrivilegedKey(secretKey));
     }
 
     private LifecycleSnapshot CreateSnapshot(string operation)

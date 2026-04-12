@@ -99,7 +99,10 @@ internal sealed class SupabaseChildClientFactory
             ? CreateStaticHeaders(apiKey)
             : new Dictionary<string, string>(baseHeaders);
 
-        headers.TryAdd("Authorization", $"Bearer {apiKey}");
+        if (SupabaseKeyClassifier.ShouldSendBearerAuthorization(apiKey))
+        {
+            headers.TryAdd("Authorization", $"Bearer {apiKey}");
+        }
 
         return headers;
     }

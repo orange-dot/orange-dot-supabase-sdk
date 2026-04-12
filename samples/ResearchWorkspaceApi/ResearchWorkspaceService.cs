@@ -33,10 +33,12 @@ public sealed class ResearchWorkspaceService
         _logger = logger;
     }
 
-    public MeResponse GetMe(string accessToken)
+    public MeResponse GetMe(ResearchWorkspaceIdentity identity)
     {
-        ValidateAccessToken(accessToken);
-        return new MeResponse(RequestAuth.GetRequiredUserId(accessToken), RequestAuth.TryGetEmail(accessToken));
+        ArgumentNullException.ThrowIfNull(identity);
+        ValidateIdentifier(identity.UserId, nameof(identity.UserId));
+
+        return new MeResponse(identity.UserId, identity.Email);
     }
 
     public static IReadOnlyList<string> GetSupportedRoles() => SupportedRoles;
@@ -466,24 +468,40 @@ public sealed class ResearchWorkspaceService
         return result;
     }
 
-    public Task<RunWatchStartedResponse> StartRunWatchAsync(string accessToken, string experimentId)
+    public Task<RunWatchStartedResponse> StartRunWatchAsync(ResearchWorkspaceIdentity identity, string experimentId)
     {
-        ValidateAccessToken(accessToken);
+        ArgumentNullException.ThrowIfNull(identity);
+        ValidateAccessToken(identity.AccessToken);
+        ValidateIdentifier(identity.UserId, nameof(identity.UserId));
         ValidateIdentifier(experimentId, nameof(experimentId));
-        return _watchRegistry.StartAsync(accessToken, experimentId);
+        return _watchRegistry.StartAsync(identity, experimentId);
     }
 
-    public RunWatchSnapshot GetRunWatchSnapshot(string watchId, string requestingUserId)
+    public async Task<RunWatchSnapshot> GetRunWatchSnapshotAsync(string watchId, ResearchWorkspaceIdentity identity)
     {
+        ArgumentNullException.ThrowIfNull(identity);
         ValidateIdentifier(watchId, nameof(watchId));
-        ValidateIdentifier(requestingUserId, nameof(requestingUserId));
-        var snapshot = _watchRegistry.GetSnapshot(watchId, requestingUserId);
+        ValidateIdentifier(identity.UserId, nameof(identity.UserId));
+        var snapshot = await _watchRegistry.GetSnapshotAsync(watchId, identity.UserId);
         if (snapshot is null)
         {
             throw new KeyNotFoundException($"Run watch '{watchId}' was not found.");
         }
 
         return snapshot;
+    }
+
+    public async Task DeleteRunWatchAsync(string watchId, ResearchWorkspaceIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        ValidateIdentifier(watchId, nameof(watchId));
+        ValidateIdentifier(identity.UserId, nameof(identity.UserId));
+
+        var deleted = await _watchRegistry.DeleteAsync(watchId, identity.UserId);
+        if (!deleted)
+        {
+            throw new KeyNotFoundException($"Run watch '{watchId}' was not found.");
+        }
     }
 
     public HealthResponse GetHealth()
