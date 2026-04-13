@@ -74,6 +74,41 @@ public sealed class AuthTraceToModelActionTranslatorTests
             actions);
     }
 
+    [Fact]
+    public void Runtime_trace_translates_user_update_and_mfa_verification_to_authenticated_publications()
+    {
+        var trace = CreateRuntimeTrace(
+            new AuthTraceScenarioStep.SignIn(CreateSession("signed-in-token", "refresh-token", 1800)),
+            new AuthTraceScenarioStep.UserUpdated(CreateSession("user-updated-token", "refresh-token-2", 1800)),
+            new AuthTraceScenarioStep.MfaChallengeVerified(CreateSession("mfa-token", "refresh-token-3", 1800)));
+
+        var actions = new AuthTraceToModelActionTranslator().Translate(trace);
+
+        Assert.Equal(
+            [
+                StartBinding("Postgrest"),
+                StartBinding("Storage"),
+                StartBinding("Functions"),
+                StartBinding("Realtime"),
+                Action(AuthModelActionKind.SignIn),
+                Project("Postgrest"),
+                Project("Storage"),
+                Project("Functions"),
+                Project("Realtime"),
+                Action(AuthModelActionKind.SignIn),
+                Project("Postgrest"),
+                Project("Storage"),
+                Project("Functions"),
+                Project("Realtime"),
+                Action(AuthModelActionKind.SignIn),
+                Project("Postgrest"),
+                Project("Storage"),
+                Project("Functions"),
+                Project("Realtime")
+            ],
+            actions);
+    }
+
     private static IReadOnlyList<RuntimeTraceEvent> CreateRuntimeTrace(params AuthTraceScenarioStep[] steps)
     {
         var observer = new AuthStateObserver();
@@ -98,9 +133,17 @@ public sealed class AuthTraceToModelActionTranslatorTests
                     SetCurrentSession(auth, session);
                     auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
                     break;
+                case AuthTraceScenarioStep.UserUpdated(var session):
+                    SetCurrentSession(auth, session);
+                    auth.NotifyAuthStateChange(GotrueAuthState.UserUpdated);
+                    break;
                 case AuthTraceScenarioStep.Refresh(var session):
                     SetCurrentSession(auth, session);
                     auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
+                    break;
+                case AuthTraceScenarioStep.MfaChallengeVerified(var session):
+                    SetCurrentSession(auth, session);
+                    auth.NotifyAuthStateChange(GotrueAuthState.MfaChallengeVerified);
                     break;
                 case AuthTraceScenarioStep.SignOut:
                     SetCurrentSession(auth, null);

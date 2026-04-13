@@ -1,41 +1,60 @@
 # TLA+ Model Notes
 
-This directory holds the TLA+ model used for selected auth propagation ordering properties.
+This directory holds two supplemental TLA+ models for the orchestration layer:
 
-It is a supplemental model. It does not prove the .NET implementation end to end.
+- auth propagation ordering
+- hosted startup plus shell readiness gating
+
+They do not prove the .NET implementation end to end.
 
 ## Files
 
-- [`AuthPropagation.tla`](AuthPropagation.tla) — model
-- [`AuthPropagation.cfg`](AuthPropagation.cfg) — TLC configuration
+- [`AuthPropagation.tla`](AuthPropagation.tla) + [`AuthPropagation.cfg`](AuthPropagation.cfg) — auth propagation model and TLC config
+- [`HostedLifecycle.tla`](HostedLifecycle.tla) + [`HostedLifecycle.cfg`](HostedLifecycle.cfg) — hosted startup and shell-gate lifecycle model and TLC config
+
+## Runtime Bridge
+
+The checked path in this repository is:
+
+1. runtime code emits semantic trace events
+2. trace-to-model translators map those runtime traces to model actions
+3. unit tests verify the translators against real runtime traces
+4. TLC checks the bounded auth and lifecycle models in CI
+5. selected local integration tests run the same translators against live runtime traces from the local Supabase stack
+
+This is a bounded conformance bridge, not an end-to-end proof of the full runtime or the full live local stack.
 
 ## How to run
 
 From the repository root:
 
 ```bash
-./scripts/run-auth-tlc.sh
+bash scripts/run-auth-tlc.sh
+bash scripts/run-lifecycle-tlc.sh
 ```
 
-The script downloads `tla2tools.jar` into `~/tools/tla/` if needed and runs TLC against `AuthPropagation.tla` with `AuthPropagation.cfg`.
+The wrappers call the shared runner:
 
-CI runs the same script with a pinned stable `tla2tools.jar` version and a runner-local tool directory.
+```bash
+bash scripts/run-tlc.sh AuthPropagation
+bash scripts/run-tlc.sh HostedLifecycle
+```
 
-## Recorded TLC Run
+The shared runner downloads `tla2tools.jar` into `~/tools/tla/` if needed. CI runs the same checks with a pinned stable `tla2tools.jar` version and a runner-local tool directory.
 
-Last recorded successful TLC run:
+## Recorded TLC Runs
 
-- Date: 2026-04-13
-- Command: `./scripts/run-auth-tlc.sh`
+### AuthPropagation
+
+- Date: `2026-04-13`
+- Command: `bash scripts/run-auth-tlc.sh`
 - Result: `Model checking completed. No error has been found.`
-- States generated: `94801`
+- States generated: `96353`
 - Distinct states: `12928`
-- Search depth: `15`
+- Search depth: `13`
 - Runtime: about `4s`
 
-## What this run checks
-
-From [`AuthPropagation.cfg`](AuthPropagation.cfg):
+Checks from [`AuthPropagation.cfg`](AuthPropagation.cfg):
 
 - `TypeOK`
 - `SignedOutClearsBindings`
@@ -44,10 +63,31 @@ From [`AuthPropagation.cfg`](AuthPropagation.cfg):
 - `SignedOutHasNoPendingRefresh`
 - `AuthenticatedBindingsSettleOrAuthChanges`
 
+### HostedLifecycle
+
+- Date: `2026-04-13`
+- Command: `bash scripts/run-lifecycle-tlc.sh`
+- Result: `Model checking completed. No error has been found.`
+- States generated: `478`
+- Distinct states: `63`
+- Search depth: `8`
+- Runtime: under `1s`
+
+Checks from [`HostedLifecycle.cfg`](HostedLifecycle.cfg):
+
+- `TypeOK`
+- `DeniedNeverExceedsAttempts`
+- `AllowedNeverExceedsAttempts`
+- `AllowedCallsRequireReady`
+- `ReadyImpliesPublished`
+- `PublicationSkipRequiresStopRequested`
+- `PublicationSkipKeepsLifecycleCanceled`
+- `CanceledOrFaultedNeverReady`
+
 ## CI Rule
 
-TLC is a required CI check on every pull request and push to `main`.
+Both TLC checks are required on every pull request and push to `main`.
 
 ## Maintenance rule
 
-If `AuthPropagation.tla`, `AuthPropagation.cfg`, the shared auth conformance layer, or the auth trace-to-model translator changes, CI should continue to pass and the recorded run summary in this file should stay representative of a recent successful run.
+If either `.tla` / `.cfg` pair, the shared auth or lifecycle conformance layer, or either trace-to-model translator changes, CI should continue to pass and the recorded run summaries in this file should stay representative of a recent successful run.

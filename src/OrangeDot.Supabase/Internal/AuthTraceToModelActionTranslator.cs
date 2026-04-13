@@ -85,6 +85,8 @@ internal sealed class AuthTraceToModelActionTranslator
         {
             case AuthTraceKind.InitialSessionPublished:
             case AuthTraceKind.SignedInPublished:
+            case AuthTraceKind.UserUpdatedPublished:
+            case AuthTraceKind.MfaChallengeVerifiedPublished:
                 actions.Add(new AuthModelAction(AuthModelActionKind.SignIn));
                 UpdateAuthSnapshot(authTrace);
                 return;
@@ -117,9 +119,7 @@ internal sealed class AuthTraceToModelActionTranslator
                 actions.Add(new AuthModelAction(AuthModelActionKind.IgnoreStaleRefreshResult));
                 UpdateAuthSnapshot(authTrace);
                 return;
-            case AuthTraceKind.UserUpdatedPublished:
             case AuthTraceKind.FaultedPublished:
-            case AuthTraceKind.MfaChallengeVerifiedPublished:
                 throw new InvalidOperationException(
                     $"Auth trace kind '{authTrace.Kind}' is not yet mapped to a TLA action.");
             default:

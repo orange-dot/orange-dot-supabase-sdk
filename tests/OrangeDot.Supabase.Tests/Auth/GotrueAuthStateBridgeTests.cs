@@ -108,13 +108,20 @@ public sealed class GotrueAuthStateBridgeTests
         var observer = new AuthStateObserver();
         using var meterFactory = new TestMeterFactory();
         using var collector = new LongMeasurementCollector("Supabase.Client");
+        var activityGate = new object();
         List<Activity> activities = [];
 
         using var listener = new ActivityListener
         {
             ShouldListenTo = static source => source.Name == "Supabase.Client",
             Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => activities.Add(activity)
+            ActivityStopped = activity =>
+            {
+                lock (activityGate)
+                {
+                    activities.Add(activity);
+                }
+            }
         };
 
         ActivitySource.AddActivityListener(listener);
@@ -124,7 +131,13 @@ public sealed class GotrueAuthStateBridgeTests
         SetCurrentSession(auth, CreateSession("refreshed-token", "refresh-token", 3600));
         auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
 
-        Assert.Contains(activities, activity => activity.OperationName == "supabase.auth.state_change");
+        Activity[] activitySnapshot;
+        lock (activityGate)
+        {
+            activitySnapshot = activities.ToArray();
+        }
+
+        Assert.Contains(activitySnapshot, activity => activity.OperationName == "supabase.auth.state_change");
         Assert.Contains(collector.Measurements, measurement => measurement.Name == "supabase.auth.token_refresh.total");
         Assert.Contains(collector.Measurements, measurement => measurement.Name == "supabase.auth.state_changes.total");
     }

@@ -11,7 +11,11 @@ internal abstract record AuthTraceScenarioStep
 {
     internal sealed record SignIn(global::Supabase.Gotrue.Session Session) : AuthTraceScenarioStep;
 
+    internal sealed record UserUpdated(global::Supabase.Gotrue.Session Session) : AuthTraceScenarioStep;
+
     internal sealed record Refresh(global::Supabase.Gotrue.Session Session) : AuthTraceScenarioStep;
+
+    internal sealed record MfaChallengeVerified(global::Supabase.Gotrue.Session Session) : AuthTraceScenarioStep;
 
     internal sealed record SignOut() : AuthTraceScenarioStep;
 
@@ -57,10 +61,16 @@ internal sealed class AuthTraceExpectationBuilder
                 case AuthTraceScenarioStep.SignIn(var session):
                     AppendPublishedAndProjected(AuthTraceKind.SignedInPublished, _machine.AdvanceAuthenticated(CreateSnapshot(session)));
                     break;
+                case AuthTraceScenarioStep.UserUpdated(var session):
+                    AppendPublishedAndProjected(AuthTraceKind.UserUpdatedPublished, _machine.AdvanceAuthenticated(CreateSnapshot(session)));
+                    break;
                 case AuthTraceScenarioStep.Refresh(var session):
                     var snapshot = CreateSnapshot(session);
                     AppendPublishedAndProjected(AuthTraceKind.RefreshBeginPublished, _machine.BeginRefresh(snapshot));
                     AppendPublishedAndProjected(AuthTraceKind.RefreshCompletedPublished, _machine.CompleteRefresh(snapshot));
+                    break;
+                case AuthTraceScenarioStep.MfaChallengeVerified(var session):
+                    AppendPublishedAndProjected(AuthTraceKind.MfaChallengeVerifiedPublished, _machine.AdvanceAuthenticated(CreateSnapshot(session)));
                     break;
                 case AuthTraceScenarioStep.SignOut:
                     Assert.True(_machine.TrySignOut(out var signedOut));

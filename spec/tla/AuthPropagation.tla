@@ -38,7 +38,7 @@ StopBinding(b) ==
     /\ UNCHANGED <<authState, canonicalVersion, pendingRefreshVersion, projectedVersion>>
 
 SignIn ==
-    /\ authState \in {"Anonymous", "SignedOut", "Faulted"}
+    /\ authState \in {"Anonymous", "Authenticated", "SignedOut", "Faulted"}
     /\ canonicalVersion < MaxVersion
     /\ authState' = "Authenticated"
     /\ canonicalVersion' = canonicalVersion + 1
