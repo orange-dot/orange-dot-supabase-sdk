@@ -67,10 +67,11 @@ internal sealed class AuthTraceExpectationBuilder
                     AppendPublishedAndProjected(AuthTraceKind.SignedOutPublished, signedOut);
                     break;
                 case AuthTraceScenarioStep.FaultedRefresh(var reason):
-                    AppendPublishedAndProjected(AuthTraceKind.FaultedPublished, _machine.Fault(reason));
+                    AppendPublishedAndProjected(AuthTraceKind.RefreshFailedPublished, _machine.Fault(reason));
                     break;
                 case AuthTraceScenarioStep.IgnoreStaleRefreshAfterSignOut:
                     Assert.True(_machine.TryIgnoreStaleRefreshResultAfterSignOut());
+                    AppendAuthPublish(AuthTraceKind.StaleRefreshIgnored, _machine.CurrentState);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(step), step, "Unknown auth trace scenario step.");

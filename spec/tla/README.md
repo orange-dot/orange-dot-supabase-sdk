@@ -28,9 +28,9 @@ Last recorded successful TLC run:
 - Date: 2026-04-13
 - Command: `./scripts/run-auth-tlc.sh`
 - Result: `Model checking completed. No error has been found.`
-- States generated: `62657`
-- Distinct states: `8864`
-- Search depth: `14`
+- States generated: `94801`
+- Distinct states: `12928`
+- Search depth: `15`
 - Runtime: about `4s`
 
 ## What this run checks
@@ -41,8 +41,8 @@ From [`AuthPropagation.cfg`](AuthPropagation.cfg):
 - `SignedOutClearsBindings`
 - `ProjectedVersionNeverLeads`
 - `RefreshingUsesFutureVersion`
+- `SignedOutHasNoPendingRefresh`
 - `AuthenticatedBindingsSettleOrAuthChanges`
-- `SignOutEventuallyQuiescesPendingRefresh`
 
 ## CI Rule
 
@@ -50,4 +50,4 @@ TLC is a required CI check on every pull request and push to `main`.
 
 ## Maintenance rule
 
-If `AuthPropagation.tla`, `AuthPropagation.cfg`, or the shared auth conformance layer changes, CI should continue to pass and the recorded run summary in this file should stay representative of a recent successful run.
+If `AuthPropagation.tla`, `AuthPropagation.cfg`, the shared auth conformance layer, or the auth trace-to-model translator changes, CI should continue to pass and the recorded run summary in this file should stay representative of a recent successful run.

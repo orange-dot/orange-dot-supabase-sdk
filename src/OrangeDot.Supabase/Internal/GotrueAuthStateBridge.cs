@@ -99,6 +99,12 @@ internal sealed class GotrueAuthStateBridge : IDisposable
             case GotrueAuthState.TokenRefreshed:
                 if (_stateMachine.TryIgnoreStaleRefreshResultAfterSignOut())
                 {
+                    var snapshot = _stateMachine.CaptureSnapshot();
+                    _traceSink.Record(new AuthTraceEvent(
+                        AuthTraceKind.StaleRefreshIgnored,
+                        snapshot.AuthState,
+                        snapshot.CanonicalVersion,
+                        snapshot.PendingRefreshVersion));
                     _logger.LogWarning(
                         "Ignored stale Gotrue auth state {State} because canonical state is signed out.",
                         stateChanged);
@@ -114,7 +120,7 @@ internal sealed class GotrueAuthStateBridge : IDisposable
                 else
                 {
                     ClearPersistedSessionOrThrow(stateChanged);
-                    states.Add((_stateMachine.Fault("Token refresh completed without a valid session."), stateChanged.ToString(), AuthTraceKind.FaultedPublished, false));
+                    states.Add((_stateMachine.Fault("Token refresh completed without a valid session."), stateChanged.ToString(), AuthTraceKind.RefreshFailedPublished, false));
                 }
 
                 break;

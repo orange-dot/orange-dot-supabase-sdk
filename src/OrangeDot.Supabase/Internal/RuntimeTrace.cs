@@ -30,8 +30,10 @@ internal enum AuthTraceKind
     UserUpdatedPublished,
     RefreshBeginPublished,
     RefreshCompletedPublished,
+    RefreshFailedPublished,
     SignedOutPublished,
     FaultedPublished,
+    StaleRefreshIgnored,
     MfaChallengeVerifiedPublished
 }
 

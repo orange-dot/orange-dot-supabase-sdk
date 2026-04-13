@@ -62,8 +62,10 @@ CompleteRefresh ==
     /\ UNCHANGED <<live, projectedVersion>>
 
 RefreshFail ==
-    /\ authState = "Refreshing"
-    /\ pendingRefreshVersion > canonicalVersion
+    /\ authState \in {"Authenticated", "Refreshing"}
+    /\ IF authState = "Refreshing"
+          THEN pendingRefreshVersion > canonicalVersion
+          ELSE pendingRefreshVersion = 0
     /\ authState' = "Faulted"
     /\ canonicalVersion' = canonicalVersion
     /\ pendingRefreshVersion' = 0
@@ -71,10 +73,9 @@ RefreshFail ==
 
 IgnoreStaleRefreshResult ==
     /\ authState = "SignedOut"
-    /\ pendingRefreshVersion > canonicalVersion
     /\ authState' = "SignedOut"
     /\ canonicalVersion' = canonicalVersion
-    /\ pendingRefreshVersion' = 0
+    /\ pendingRefreshVersion' = pendingRefreshVersion
     /\ UNCHANGED <<live, projectedVersion>>
 
 ProjectCurrentToBinding(b) ==
@@ -97,7 +98,7 @@ SignOut ==
     /\ authState \in {"Anonymous", "Authenticated", "Refreshing", "Faulted"}
     /\ authState' = "SignedOut"
     /\ canonicalVersion' = canonicalVersion
-    /\ pendingRefreshVersion' = pendingRefreshVersion
+    /\ pendingRefreshVersion' = 0
     /\ live' = live
     /\ projectedVersion' = [b \in Bindings |-> 0]
 
@@ -129,16 +130,15 @@ ProjectedVersionNeverLeads ==
 RefreshingUsesFutureVersion ==
     authState = "Refreshing" => pendingRefreshVersion > canonicalVersion
 
+SignedOutHasNoPendingRefresh ==
+    authState = "SignedOut" => pendingRefreshVersion = 0
+
 AuthenticatedBindingsSettleOrAuthChanges ==
     [](\A b \in Bindings:
         (authState = "Authenticated" /\ live[b] /\ projectedVersion[b] # canonicalVersion)
             => <>(projectedVersion[b] = canonicalVersion
                   \/ ~live[b]
                   \/ authState # "Authenticated"))
-
-SignOutEventuallyQuiescesPendingRefresh ==
-    []((authState = "SignedOut" /\ pendingRefreshVersion > canonicalVersion) =>
-        <>(pendingRefreshVersion = 0))
 
 Spec ==
     Init
