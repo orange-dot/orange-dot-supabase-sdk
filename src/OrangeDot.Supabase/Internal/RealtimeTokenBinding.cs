@@ -10,13 +10,15 @@ internal sealed class RealtimeTokenBinding : IDisposable
 {
     private readonly global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> _realtime;
     private readonly ILogger<RealtimeTokenBinding> _logger;
+    private readonly IRuntimeTraceSink _traceSink;
     private readonly IDisposable _subscription;
     private int _disposed;
 
     internal RealtimeTokenBinding(
         IAuthStateObserver authStateObserver,
         global::Supabase.Realtime.Interfaces.IRealtimeClient<global::Supabase.Realtime.RealtimeSocket, global::Supabase.Realtime.RealtimeChannel> realtime,
-        ILogger<RealtimeTokenBinding> logger)
+        ILogger<RealtimeTokenBinding> logger,
+        IRuntimeTraceSink? traceSink = null)
     {
         ArgumentNullException.ThrowIfNull(authStateObserver);
         ArgumentNullException.ThrowIfNull(realtime);
@@ -24,6 +26,7 @@ internal sealed class RealtimeTokenBinding : IDisposable
 
         _realtime = realtime;
         _logger = logger;
+        _traceSink = traceSink ?? NoOpRuntimeTraceSink.Instance;
         _subscription = authStateObserver.Subscribe(Apply);
     }
 
@@ -49,17 +52,19 @@ internal sealed class RealtimeTokenBinding : IDisposable
         {
             case AuthState.Authenticated authenticated:
                 _realtime.SetAuth(authenticated.AccessToken);
+                RecordTrace(state, BindingProjectionAction.Applied);
                 _logger.LogInformation("Applied authenticated token to realtime client.");
                 break;
             case AuthState.Refreshing refreshing:
                 _realtime.SetAuth(refreshing.AccessToken);
+                RecordTrace(state, BindingProjectionAction.Applied);
                 _logger.LogInformation("Applied refreshing token projection to realtime client.");
                 break;
             case AuthState.SignedOut:
             case AuthState.Anonymous:
             case AuthState.Faulted:
             {
-                ClearProjection();
+                ClearProjection(state);
                 break;
             }
             default:
@@ -67,7 +72,7 @@ internal sealed class RealtimeTokenBinding : IDisposable
         }
     }
 
-    private void ClearProjection()
+    private void ClearProjection(AuthState? state = null)
     {
         _realtime.SetAuth(string.Empty);
 
@@ -78,8 +83,24 @@ internal sealed class RealtimeTokenBinding : IDisposable
             _realtime.Remove(channel);
         }
 
+        if (state is not null)
+        {
+            RecordTrace(state, BindingProjectionAction.Cleared);
+        }
+
         _logger.LogInformation(
             "Cleared realtime auth projection and removed {ChannelCount} realtime channels.",
             channels.Length);
+    }
+
+    private void RecordTrace(AuthState state, BindingProjectionAction action)
+    {
+        _traceSink.Record(new BindingProjectionTraceEvent(
+            BindingTarget.Realtime,
+            action,
+            CanonicalAuthStateMachine.ToStateName(state),
+            state.CanonicalVersion,
+            CanonicalAuthStateMachine.GetPendingRefreshVersion(state),
+            CanonicalAuthStateMachine.GetProjectionVersion(state)));
     }
 }

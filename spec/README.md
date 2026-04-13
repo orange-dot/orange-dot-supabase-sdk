@@ -27,7 +27,7 @@ These artifacts are for the orchestration layer only.
 
 - They do not model child-module internals.
 - They do not prove the full .NET implementation.
-- The current vector tests replay dedicated test models. They do not execute the production runtime directly.
+- The current vector tests replay the shared auth/lifecycle state-machine layer and URL derivation logic. They do not execute the production runtime directly.
 - They are intended to keep the model/scenario layer thin and reviewable.
 
 ## Intended use
@@ -38,4 +38,4 @@ These artifacts are for the orchestration layer only.
 
 ## TLC Note
 
-`AuthPropagation.tla` is the only TLA+ model kept in this repository. See [`tla/README.md`](tla/README.md) for the recorded TLC run and rerun rule.
+`AuthPropagation.tla` is the only TLA+ model kept in this repository. See [`tla/README.md`](tla/README.md) for the required TLC CI check and local rerun instructions.

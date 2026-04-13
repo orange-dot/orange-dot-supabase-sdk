@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OrangeDot.Supabase.Auth;
+using OrangeDot.Supabase.Internal;
 using Xunit;
 
 namespace OrangeDot.Supabase.Tests.Spec;
@@ -39,20 +40,18 @@ public sealed class AuthVectorReplayTests
     {
         private const string PlaceholderAccessToken = "access-token";
         private const string PlaceholderRefreshToken = "refresh-token";
+        private static readonly DateTimeOffset PlaceholderExpiresAt = DateTimeOffset.UnixEpoch;
 
         private readonly string _vectorId;
         private readonly Dictionary<BindingKind, BindingProjection> _bindings;
-        private AuthState _state;
-        private long _pendingRefreshVersion;
+        private readonly CanonicalAuthStateMachine _canonical;
 
         private AuthVectorReplayState(
-            AuthState state,
-            long pendingRefreshVersion,
+            CanonicalAuthStateMachine canonical,
             Dictionary<BindingKind, BindingProjection> bindings,
             string vectorId)
         {
-            _state = state;
-            _pendingRefreshVersion = pendingRefreshVersion;
+            _canonical = canonical;
             _bindings = bindings;
             _vectorId = vectorId;
         }
@@ -60,8 +59,9 @@ public sealed class AuthVectorReplayTests
         internal static AuthVectorReplayState Create(AuthVectorStateSnapshot initialState, string vectorId)
         {
             return new AuthVectorReplayState(
-                CreateAuthState(initialState),
-                initialState.PendingRefreshVersion,
+                new CanonicalAuthStateMachine(
+                    CreateAuthState(initialState),
+                    initialState.PendingRefreshVersion),
                 new Dictionary<BindingKind, BindingProjection>
                 {
                     [BindingKind.Postgrest] = new(initialState.LiveBindings.Postgrest, initialState.ProjectedVersions.Postgrest),
@@ -84,36 +84,20 @@ public sealed class AuthVectorReplayTests
                         _bindings[binding] = projection with
                         {
                             IsLive = true,
-                            ProjectedVersion = GetProjectedVersionForState(_state)
+                            ProjectedVersion = _canonical.CurrentProjectionVersion
                         };
                         break;
                     }
                 case "begin_refresh":
                     Require(
-                        _state is AuthState.Authenticated,
+                        _canonical.CurrentState is AuthState.Authenticated,
                         "begin_refresh requires an authenticated canonical state.");
 
-                    _pendingRefreshVersion = _state.CanonicalVersion + 1;
-                    _state = new AuthState.Refreshing(
-                        _state.CanonicalVersion,
-                        _pendingRefreshVersion,
-                        PlaceholderAccessToken,
-                        PlaceholderRefreshToken,
-                        DateTimeOffset.UnixEpoch);
+                    _ = _canonical.BeginRefresh(CreatePlaceholderSession());
                     break;
                 case "complete_refresh":
-                    Require(_pendingRefreshVersion > 0, "complete_refresh requires a pending refresh version.");
-
-                    var canonicalVersion = _pendingRefreshVersion > _state.CanonicalVersion
-                        ? _pendingRefreshVersion
-                        : _state.CanonicalVersion + 1;
-
-                    _pendingRefreshVersion = 0;
-                    _state = new AuthState.Authenticated(
-                        canonicalVersion,
-                        PlaceholderAccessToken,
-                        PlaceholderRefreshToken,
-                        DateTimeOffset.UnixEpoch);
+                    Require(_canonical.PendingRefreshVersion > 0, "complete_refresh requires a pending refresh version.");
+                    _ = _canonical.CompleteRefresh(CreatePlaceholderSession());
                     break;
                 case "project_binding":
                     {
@@ -124,13 +108,12 @@ public sealed class AuthVectorReplayTests
 
                         _bindings[binding] = projection with
                         {
-                            ProjectedVersion = GetProjectedVersionForState(_state)
+                            ProjectedVersion = _canonical.CurrentProjectionVersion
                         };
                         break;
                     }
                 case "sign_out":
-                    _pendingRefreshVersion = 0;
-                    _state = new AuthState.SignedOut(_state.CanonicalVersion);
+                    Require(_canonical.TrySignOut(out _), "sign_out requires a non-signed-out canonical state.");
 
                     foreach (var binding in Enum.GetValues<BindingKind>())
                     {
@@ -140,9 +123,11 @@ public sealed class AuthVectorReplayTests
                     break;
                 case "ignore_stale_refresh_result":
                     Require(
-                        _pendingRefreshVersion > 0 || _state is AuthState.SignedOut,
+                        _canonical.PendingRefreshVersion > 0 || _canonical.CurrentState is AuthState.SignedOut,
                         "ignore_stale_refresh_result requires a pending refresh version or a signed-out canonical state.");
-                    _pendingRefreshVersion = 0;
+                    Require(
+                        _canonical.TryIgnoreStaleRefreshResultAfterSignOut(),
+                        "ignore_stale_refresh_result requires the canonical state to be signed out.");
                     break;
                 default:
                     throw new InvalidOperationException($"{_vectorId}: Unsupported auth vector event '{@event.Type}'.");
@@ -155,9 +140,9 @@ public sealed class AuthVectorReplayTests
         {
             return new AuthVectorStateSnapshot
             {
-                AuthState = ToStateName(_state),
-                CanonicalVersion = _state.CanonicalVersion,
-                PendingRefreshVersion = _pendingRefreshVersion,
+                AuthState = ToVectorStateName(_canonical.CurrentState),
+                CanonicalVersion = _canonical.CurrentState.CanonicalVersion,
+                PendingRefreshVersion = _canonical.PendingRefreshVersion,
                 LiveBindings = new BindingLiveSnapshot
                 {
                     Postgrest = _bindings[BindingKind.Postgrest].IsLive,
@@ -175,6 +160,14 @@ public sealed class AuthVectorReplayTests
             };
         }
 
+        private static SessionSnapshot CreatePlaceholderSession()
+        {
+            return new SessionSnapshot(
+                PlaceholderAccessToken,
+                PlaceholderRefreshToken,
+                PlaceholderExpiresAt);
+        }
+
         private static AuthState CreateAuthState(AuthVectorStateSnapshot snapshot)
         {
             return snapshot.AuthState switch
@@ -189,20 +182,7 @@ public sealed class AuthVectorReplayTests
             };
         }
 
-        private static long GetProjectedVersionForState(AuthState state)
-        {
-            return state switch
-            {
-                AuthState.Authenticated => state.CanonicalVersion,
-                AuthState.Refreshing => state.CanonicalVersion,
-                AuthState.SignedOut => 0,
-                AuthState.Anonymous => 0,
-                AuthState.Faulted => 0,
-                _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown auth state.")
-            };
-        }
-
-        private static string ToStateName(AuthState state)
+        private static string ToVectorStateName(AuthState state)
         {
             return state switch
             {
@@ -234,8 +214,8 @@ public sealed class AuthVectorReplayTests
             foreach (var (binding, projection) in _bindings)
             {
                 Require(
-                    projection.ProjectedVersion <= _state.CanonicalVersion,
-                    $"Binding '{binding}' projected version {projection.ProjectedVersion} exceeded canonical version {_state.CanonicalVersion}.");
+                    projection.ProjectedVersion <= _canonical.CurrentState.CanonicalVersion,
+                    $"Binding '{binding}' projected version {projection.ProjectedVersion} exceeded canonical version {_canonical.CurrentState.CanonicalVersion}.");
             }
         }
 

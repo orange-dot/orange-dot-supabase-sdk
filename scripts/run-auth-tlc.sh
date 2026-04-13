@@ -4,8 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SPEC_DIR="$ROOT_DIR/spec/tla"
 TOOLS_DIR="${TLA_TOOLS_DIR:-$HOME/tools/tla}"
+TLA_VERSION="${TLA_VERSION:-1.7.4}"
 TLA_JAR="${TLA_JAR:-$TOOLS_DIR/tla2tools.jar}"
-TLA_URL="https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar"
+TLA_URL="${TLA_URL:-https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar}"
 MODULE="AuthPropagation.tla"
 CONFIG="AuthPropagation.cfg"
 
@@ -38,5 +39,5 @@ fi
 
 cd "$SPEC_DIR"
 
-echo "Running TLC for $MODULE with $CONFIG"
+echo "Running TLC for $MODULE with $CONFIG using TLA+ $TLA_VERSION"
 exec java -cp "$TLA_JAR" tlc2.TLC "$MODULE" -config "$CONFIG" "$@"

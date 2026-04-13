@@ -1,4 +1,5 @@
 using System;
+using OrangeDot.Supabase.Internal;
 using Xunit;
 
 namespace OrangeDot.Supabase.Tests.Spec;
@@ -23,46 +24,25 @@ public sealed class LifecycleVectorReplayTests
         Assert.Equal(vector.Expected, replay.ToSnapshot());
     }
 
-    private enum LifecyclePhase
-    {
-        Configured,
-        LoadingSession,
-        Initializing,
-        Ready,
-        Disposed
-    }
-
-    // The vector schema keeps "load complete" and "initialize complete" inside their in-flight phases
-    // until the next explicit event advances to the next public phase.
     private sealed class LifecycleReplayState
     {
         private readonly string _vectorId;
-        private LifecyclePhase _phase;
-        private int _childCalls;
-        private int _publicAttempts;
-        private int _publicDenied;
+        private readonly LifecycleStateMachine _machine;
 
-        private LifecycleReplayState(
-            LifecyclePhase phase,
-            int childCalls,
-            int publicAttempts,
-            int publicDenied,
-            string vectorId)
+        private LifecycleReplayState(LifecycleStateMachine machine, string vectorId)
         {
-            _phase = phase;
-            _childCalls = childCalls;
-            _publicAttempts = publicAttempts;
-            _publicDenied = publicDenied;
+            _machine = machine;
             _vectorId = vectorId;
         }
 
         internal static LifecycleReplayState Create(LifecycleStateSnapshot initialState, string vectorId)
         {
             return new LifecycleReplayState(
-                ParsePhase(initialState.Phase, vectorId),
-                initialState.ChildCalls,
-                initialState.PublicAttempts,
-                initialState.PublicDenied,
+                new LifecycleStateMachine(
+                    ParsePhase(initialState.Phase, vectorId),
+                    initialState.ChildCalls,
+                    initialState.PublicAttempts,
+                    initialState.PublicDenied),
                 vectorId);
         }
 
@@ -71,35 +51,22 @@ public sealed class LifecycleVectorReplayTests
             switch (@event.Type)
             {
                 case "attempt_public_operation":
-                    _publicAttempts++;
-
-                    if (_phase == LifecyclePhase.Ready)
-                    {
-                        _childCalls++;
-                    }
-                    else
-                    {
-                        _publicDenied++;
-                    }
-
+                    _machine.AttemptPublicOperation();
                     break;
                 case "load_persisted_session_start":
-                    Require(_phase == LifecyclePhase.Configured, "load_persisted_session_start requires the configured phase.");
-                    _phase = LifecyclePhase.LoadingSession;
+                    _machine.LoadPersistedSessionStart();
                     break;
                 case "load_persisted_session_complete":
-                    Require(_phase == LifecyclePhase.LoadingSession, "load_persisted_session_complete requires the loading phase.");
+                    _machine.LoadPersistedSessionComplete();
                     break;
                 case "initialize_start":
-                    Require(_phase == LifecyclePhase.LoadingSession, "initialize_start requires the loading phase.");
-                    _phase = LifecyclePhase.Initializing;
+                    _machine.InitializeStart();
                     break;
                 case "initialize_complete":
-                    Require(_phase == LifecyclePhase.Initializing, "initialize_complete requires the initializing phase.");
+                    _machine.InitializeComplete();
                     break;
                 case "signal_ready":
-                    Require(_phase == LifecyclePhase.Initializing, "signal_ready requires the initializing phase.");
-                    _phase = LifecyclePhase.Ready;
+                    _machine.SignalReady();
                     break;
                 default:
                     throw new InvalidOperationException($"{_vectorId}: Unsupported lifecycle vector event '{@event.Type}'.");
@@ -108,12 +75,14 @@ public sealed class LifecycleVectorReplayTests
 
         internal LifecycleStateSnapshot ToSnapshot()
         {
+            var snapshot = _machine.CaptureSnapshot();
+
             return new LifecycleStateSnapshot
             {
-                Phase = _phase.ToString(),
-                ChildCalls = _childCalls,
-                PublicAttempts = _publicAttempts,
-                PublicDenied = _publicDenied
+                Phase = snapshot.Phase.ToString(),
+                ChildCalls = snapshot.ChildCalls,
+                PublicAttempts = snapshot.PublicAttempts,
+                PublicDenied = snapshot.PublicDenied
             };
         }
 
@@ -124,19 +93,14 @@ public sealed class LifecycleVectorReplayTests
                 nameof(LifecyclePhase.Configured) => LifecyclePhase.Configured,
                 nameof(LifecyclePhase.LoadingSession) => LifecyclePhase.LoadingSession,
                 nameof(LifecyclePhase.Initializing) => LifecyclePhase.Initializing,
+                nameof(LifecyclePhase.Faulted) => LifecyclePhase.Faulted,
+                nameof(LifecyclePhase.Canceled) => LifecyclePhase.Canceled,
                 nameof(LifecyclePhase.Ready) => LifecyclePhase.Ready,
                 nameof(LifecyclePhase.Disposed) => LifecyclePhase.Disposed,
                 _ => throw new InvalidOperationException($"{vectorId}: Unsupported lifecycle phase '{phase}'.")
             };
         }
 
-        private void Require(bool condition, string message)
-        {
-            if (!condition)
-            {
-                throw new InvalidOperationException($"{_vectorId}: {message}");
-            }
-        }
     }
 
     private sealed record LifecycleVector

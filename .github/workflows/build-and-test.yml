@@ -23,6 +23,25 @@ jobs:
       - name: Validate
         run: bash scripts/validate-test-vectors.sh
 
+  tla-check:
+    name: TLC auth propagation model
+    runs-on: ubuntu-latest
+    env:
+      TLA_TOOLS_DIR: ${{ runner.temp }}/tla
+      TLA_VERSION: 1.7.4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Run TLC
+        run: bash scripts/run-auth-tlc.sh
+
   build-and-test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -57,7 +76,9 @@ jobs:
 
   integration-tests:
     name: ubuntu-latest integration
-    needs: build-and-test
+    needs:
+      - build-and-test
+      - tla-check
     runs-on: ubuntu-latest
     env:
       ORANGEDOT_SUPABASE_RUN_INTEGRATION: "1"

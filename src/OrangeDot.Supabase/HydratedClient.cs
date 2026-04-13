@@ -57,17 +57,20 @@ public sealed class HydratedClient : IDisposable
                 _runtimeContext.AuthStateObserver,
                 loggerFactory.CreateLogger<GotrueAuthStateBridge>(),
                 metrics,
-                _runtimeContext.SessionStore);
+                _runtimeContext.SessionStore,
+                _runtimeContext.TraceSink);
             cancellationToken.ThrowIfCancellationRequested();
             headerBinding = new HeaderAuthBinding(
                 _runtimeContext.AuthStateObserver,
                 children.DynamicAuthHeaders,
-                loggerFactory.CreateLogger<HeaderAuthBinding>());
+                loggerFactory.CreateLogger<HeaderAuthBinding>(),
+                _runtimeContext.TraceSink);
             cancellationToken.ThrowIfCancellationRequested();
             realtimeBinding = new RealtimeTokenBinding(
                 _runtimeContext.AuthStateObserver,
                 children.Realtime,
-                loggerFactory.CreateLogger<RealtimeTokenBinding>());
+                loggerFactory.CreateLogger<RealtimeTokenBinding>(),
+                _runtimeContext.TraceSink);
 
             var beforeFinalizeTestHookAsync = BeforeFinalizeTestHookAsync;
 

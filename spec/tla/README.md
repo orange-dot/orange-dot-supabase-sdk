@@ -19,17 +19,19 @@ From the repository root:
 
 The script downloads `tla2tools.jar` into `~/tools/tla/` if needed and runs TLC against `AuthPropagation.tla` with `AuthPropagation.cfg`.
 
+CI runs the same script with a pinned stable `tla2tools.jar` version and a runner-local tool directory.
+
 ## Recorded TLC Run
 
 Last recorded successful TLC run:
 
-- Date: 2026-04-06
+- Date: 2026-04-13
 - Command: `./scripts/run-auth-tlc.sh`
 - Result: `Model checking completed. No error has been found.`
 - States generated: `62657`
 - Distinct states: `8864`
 - Search depth: `14`
-- Runtime: about `9s`
+- Runtime: about `4s`
 
 ## What this run checks
 
@@ -42,6 +44,10 @@ From [`AuthPropagation.cfg`](AuthPropagation.cfg):
 - `AuthenticatedBindingsSettleOrAuthChanges`
 - `SignOutEventuallyQuiescesPendingRefresh`
 
+## CI Rule
+
+TLC is a required CI check on every pull request and push to `main`.
+
 ## Maintenance rule
 
-If `AuthPropagation.tla` or `AuthPropagation.cfg` changes, rerun TLC and update the recorded run summary in this file.
+If `AuthPropagation.tla`, `AuthPropagation.cfg`, or the shared auth conformance layer changes, CI should continue to pass and the recorded run summary in this file should stay representative of a recent successful run.
