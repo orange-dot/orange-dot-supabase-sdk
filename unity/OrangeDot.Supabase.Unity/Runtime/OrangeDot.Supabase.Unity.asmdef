@@ -1,0 +1,17 @@
+{
+  "name": "OrangeDot.Supabase.Unity",
+  "rootNamespace": "OrangeDot.Supabase.Unity",
+  "references": [
+    "Supabase.Gotrue",
+    "Supabase.Postgrest"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

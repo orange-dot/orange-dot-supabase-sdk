@@ -4,7 +4,11 @@ spec/tla/states/
 TestResults/
 supabase/.branches/
 supabase/.temp/
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/unity-first-sdk/
+!.agents/skills/unity-first-sdk/SKILL.md
 .claude/
 .codex
 .playwright-mcp/

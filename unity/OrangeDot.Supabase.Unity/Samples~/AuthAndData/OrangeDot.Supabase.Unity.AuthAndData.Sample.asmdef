@@ -1,0 +1,17 @@
+{
+  "name": "OrangeDot.Supabase.Unity.AuthAndData.Sample",
+  "rootNamespace": "OrangeDot.Supabase.Unity.Samples.AuthAndData",
+  "references": [
+    "OrangeDot.Supabase.Unity",
+    "Supabase.Postgrest"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

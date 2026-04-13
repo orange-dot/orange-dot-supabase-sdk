@@ -95,6 +95,14 @@ Those fixtures support both smoke checks and the broader sample API flow.
 - `samples/ServerMinimalApi/` is the quickest way to see `AddSupabaseServer(...)`, anon access, and bearer-token delegation in a minimal ASP.NET Core app.
 - `samples/ResearchWorkspaceApi/` is the broader sample API. It shows the SDK in a larger server-side flow with delegated auth, RLS-backed data access, storage, functions, realtime, Swagger/OpenAPI, and a lightweight browser cockpit for exercising the API.
 
+## Unity Prototype Line
+
+This `dev` branch also carries a separate Unity-first prototype line under `unity/`.
+
+- `unity/OrangeDot.Supabase.Unity/` contains the Unity-facing composition package for auth and data.
+- `modules/core-csharp/Core/`, `modules/gotrue-csharp/Gotrue/`, and `modules/postgrest-csharp/Postgrest/` also act as Unity package roots on this branch.
+- the root `src/OrangeDot.Supabase/` package remains the server-side line and is not presented as a Unity package.
+
 ## Long-Lived Client
 
 ```csharp
@@ -232,6 +240,8 @@ var channel = await client.Table<Todo>().On(
 
 - [Minimal server sample](samples/ServerMinimalApi/README.md)
 - [Broader sample API with Swagger and browser cockpit](samples/ResearchWorkspaceApi/README.md)
+- [Unity prototype line](unity/README.md)
+- [Unity package README](unity/OrangeDot.Supabase.Unity/README.md)
 - [Specification notes](spec/README.md)
 
 ## What This Repo Is Not

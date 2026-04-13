@@ -1,0 +1,15 @@
+{
+  "name": "com.orange-dot.supabase.unity",
+  "version": "0.1.0",
+  "displayName": "Orange Dot Supabase Unity",
+  "description": "Unity-first auth and data composition package for the Orange Dot Supabase prototype line.",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.orange-dot.supabase.core": "0.1.0",
+    "com.orange-dot.supabase.gotrue": "0.1.0",
+    "com.orange-dot.supabase.postgrest": "0.1.0"
+  },
+  "author": {
+    "name": "Orange Dot"
+  }
+}
