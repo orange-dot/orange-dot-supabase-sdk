@@ -62,11 +62,11 @@ If `Microsoft.NETCore.App 8.0.x` is missing, install the .NET 8 runtime or SDK b
 ## Build And Unit Tests
 
 ```bash
-dotnet build OrangeDot.Supabase.sln --configuration Release
+dotnet build OrangeDot.Supabase.sln --configuration Release -m:1
 dotnet test tests/OrangeDot.Supabase.Tests/OrangeDot.Supabase.Tests.csproj --configuration Release
 ```
 
-The library project references the pinned child projects directly from `modules/`.
+The solution build runs with `-m:1` because the library references the pinned child projects directly from `modules/`, and the serial solution build path is the stable local build path for this repo.
 
 ## Integration Tests
 

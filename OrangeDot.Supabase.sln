@@ -10,14 +10,26 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrangeDot.Supabase.Tests", "tests\OrangeDot.Supabase.Tests\OrangeDot.Supabase.Tests.csproj", "{73AD9B61-BCDB-4F97-A11B-CEBC389D6E74}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8AA9F605-3396-40AD-8576-FB4B592DEC4D} = {8AA9F605-3396-40AD-8576-FB4B592DEC4D}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrangeDot.Supabase.IntegrationTests", "tests\OrangeDot.Supabase.IntegrationTests\OrangeDot.Supabase.IntegrationTests.csproj", "{60910386-3976-416D-97CB-13DA13E87309}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8AA9F605-3396-40AD-8576-FB4B592DEC4D} = {8AA9F605-3396-40AD-8576-FB4B592DEC4D}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5D20AA90-6969-D8BD-9DCD-8634F4692FDA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerMinimalApi", "samples\ServerMinimalApi\ServerMinimalApi.csproj", "{3F381C68-84C7-4BEF-B6CE-A2516973086B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8AA9F605-3396-40AD-8576-FB4B592DEC4D} = {8AA9F605-3396-40AD-8576-FB4B592DEC4D}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ResearchWorkspaceApi", "samples\ResearchWorkspaceApi\ResearchWorkspaceApi.csproj", "{5C8C39A8-D59C-4C7A-BE72-8D3FDECC1F6B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8AA9F605-3396-40AD-8576-FB4B592DEC4D} = {8AA9F605-3396-40AD-8576-FB4B592DEC4D}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
