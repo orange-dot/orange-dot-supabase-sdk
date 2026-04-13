@@ -12,26 +12,21 @@ public sealed class ShellRuntimeTraceConformanceTests
     {
         var traceSink = new RecordingRuntimeTraceSink();
         var shell = new SupabaseClientShell(NullLogger<SupabaseClientShell>.Instance, traceSink);
-        var lifecycle = CreateInitializingLifecycle();
+        var builder = ShellLifecycleTraceExpectationBuilder
+            .Create(CreateInitializingLifecycle())
+            .Apply(
+                new ShellLifecycleTraceScenarioStep.Deny("Auth"),
+                new ShellLifecycleTraceScenarioStep.ReadyCompleted(),
+                new ShellLifecycleTraceScenarioStep.Allow("Auth"));
 
-        Assert.Throws<InvalidOperationException>(() => _ = shell.Auth);
-        lifecycle.AttemptPublicOperation();
+        await ExecuteScenario(shell,
+            new ShellLifecycleTraceScenarioStep.Deny("Auth"),
+            new ShellLifecycleTraceScenarioStep.ReadyCompleted(),
+            new ShellLifecycleTraceScenarioStep.Allow("Auth"));
 
-        shell.SetInitializedClient(await CreateReadyClient());
-        lifecycle.SignalReady();
+        RuntimeTraceAssert.EqualSequence(builder.Build(), traceSink.Snapshot());
 
-        _ = shell.Auth;
-        lifecycle.AttemptPublicOperation();
-
-        Assert.Equal(
-            [
-                new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessDenied, "Auth"),
-                new LifecycleTraceEvent(LifecycleTraceKind.ReadyCompleted),
-                new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessAllowed, "Auth")
-            ],
-            traceSink.Snapshot());
-
-        var snapshot = lifecycle.CaptureSnapshot();
+        var snapshot = builder.CaptureSnapshot();
         Assert.Equal(LifecyclePhase.Ready, snapshot.Phase);
         Assert.Equal(2, snapshot.PublicAttempts);
         Assert.Equal(1, snapshot.PublicDenied);
@@ -39,26 +34,23 @@ public sealed class ShellRuntimeTraceConformanceTests
     }
 
     [Fact]
-    public void Shell_trace_matches_faulted_readiness_sequence()
+    public async Task Shell_trace_matches_faulted_readiness_sequence()
     {
         var traceSink = new RecordingRuntimeTraceSink();
         var shell = new SupabaseClientShell(NullLogger<SupabaseClientShell>.Instance, traceSink);
-        var lifecycle = CreateInitializingLifecycle();
+        var builder = ShellLifecycleTraceExpectationBuilder
+            .Create(CreateInitializingLifecycle())
+            .Apply(
+                new ShellLifecycleTraceScenarioStep.ReadyFaulted(),
+                new ShellLifecycleTraceScenarioStep.Deny("Auth"));
 
-        shell.SetInitializationFailed(new InvalidOperationException("forced"));
-        lifecycle.FailReady();
+        await ExecuteScenario(shell,
+            new ShellLifecycleTraceScenarioStep.ReadyFaulted(),
+            new ShellLifecycleTraceScenarioStep.Deny("Auth"));
 
-        Assert.Throws<InvalidOperationException>(() => _ = shell.Auth);
-        lifecycle.AttemptPublicOperation();
+        RuntimeTraceAssert.EqualSequence(builder.Build(), traceSink.Snapshot());
 
-        Assert.Equal(
-            [
-                new LifecycleTraceEvent(LifecycleTraceKind.ReadyFaulted),
-                new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessDenied, "Auth")
-            ],
-            traceSink.Snapshot());
-
-        var snapshot = lifecycle.CaptureSnapshot();
+        var snapshot = builder.CaptureSnapshot();
         Assert.Equal(LifecyclePhase.Faulted, snapshot.Phase);
         Assert.Equal(1, snapshot.PublicAttempts);
         Assert.Equal(1, snapshot.PublicDenied);
@@ -66,30 +58,54 @@ public sealed class ShellRuntimeTraceConformanceTests
     }
 
     [Fact]
-    public void Shell_trace_matches_canceled_readiness_sequence()
+    public async Task Shell_trace_matches_canceled_readiness_sequence()
     {
         var traceSink = new RecordingRuntimeTraceSink();
         var shell = new SupabaseClientShell(NullLogger<SupabaseClientShell>.Instance, traceSink);
-        var lifecycle = CreateInitializingLifecycle();
+        var builder = ShellLifecycleTraceExpectationBuilder
+            .Create(CreateInitializingLifecycle())
+            .Apply(
+                new ShellLifecycleTraceScenarioStep.ReadyCanceled(),
+                new ShellLifecycleTraceScenarioStep.Deny("Auth"));
 
-        shell.SetInitializationCanceled(default);
-        lifecycle.CancelReady();
+        await ExecuteScenario(shell,
+            new ShellLifecycleTraceScenarioStep.ReadyCanceled(),
+            new ShellLifecycleTraceScenarioStep.Deny("Auth"));
 
-        Assert.Throws<InvalidOperationException>(() => _ = shell.Auth);
-        lifecycle.AttemptPublicOperation();
+        RuntimeTraceAssert.EqualSequence(builder.Build(), traceSink.Snapshot());
 
-        Assert.Equal(
-            [
-                new LifecycleTraceEvent(LifecycleTraceKind.ReadyCanceled),
-                new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessDenied, "Auth")
-            ],
-            traceSink.Snapshot());
-
-        var snapshot = lifecycle.CaptureSnapshot();
+        var snapshot = builder.CaptureSnapshot();
         Assert.Equal(LifecyclePhase.Canceled, snapshot.Phase);
         Assert.Equal(1, snapshot.PublicAttempts);
         Assert.Equal(1, snapshot.PublicDenied);
         Assert.Equal(0, snapshot.ChildCalls);
+    }
+
+    private static async Task ExecuteScenario(SupabaseClientShell shell, params ShellLifecycleTraceScenarioStep[] steps)
+    {
+        foreach (var step in steps)
+        {
+            switch (step)
+            {
+                case ShellLifecycleTraceScenarioStep.Deny(var memberName):
+                    Assert.Throws<InvalidOperationException>(() => AccessMember(shell, memberName));
+                    break;
+                case ShellLifecycleTraceScenarioStep.ReadyCompleted:
+                    shell.SetInitializedClient(await CreateReadyClient());
+                    break;
+                case ShellLifecycleTraceScenarioStep.ReadyFaulted:
+                    shell.SetInitializationFailed(new InvalidOperationException("forced"));
+                    break;
+                case ShellLifecycleTraceScenarioStep.ReadyCanceled:
+                    shell.SetInitializationCanceled(default);
+                    break;
+                case ShellLifecycleTraceScenarioStep.Allow(var memberName):
+                    _ = AccessMember(shell, memberName);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(step), step, "Unknown shell lifecycle trace scenario step.");
+            }
+        }
     }
 
     private static LifecycleStateMachine CreateInitializingLifecycle()
@@ -112,5 +128,26 @@ public sealed class ShellRuntimeTraceConformanceTests
 
         var hydrated = await configured.LoadPersistedSessionAsync();
         return await hydrated.InitializeAsync();
+    }
+
+    private static object? AccessMember(SupabaseClientShell shell, string memberName)
+    {
+        return memberName switch
+        {
+            nameof(ISupabaseClient.Auth) => shell.Auth,
+            nameof(ISupabaseClient.Postgrest) => shell.Postgrest,
+            nameof(ISupabaseClient.Realtime) => shell.Realtime,
+            nameof(ISupabaseClient.Storage) => shell.Storage,
+            nameof(ISupabaseClient.Functions) => shell.Functions,
+            nameof(ISupabaseClient.Url) => shell.Url,
+            nameof(ISupabaseClient.AnonKey) => shell.AnonKey,
+            nameof(ISupabaseClient.Urls) => shell.Urls,
+            "Table" => shell.Table<TraceModel>(),
+            _ => throw new ArgumentOutOfRangeException(nameof(memberName), memberName, "Unknown shell member name.")
+        };
+    }
+
+    private sealed class TraceModel : global::Supabase.Postgrest.Models.BaseModel
+    {
     }
 }

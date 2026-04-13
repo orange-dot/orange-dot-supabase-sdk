@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OrangeDot.Supabase.Auth;
@@ -28,19 +27,21 @@ public sealed class AuthRuntimeTraceConformanceTests
             metrics: null,
             traceSink: traceSink);
 
-        var expected = new List<RuntimeTraceEvent>
+        var steps = new AuthTraceScenarioStep[]
         {
-            CreateBindingTrace(BindingTarget.Header, new AuthState.Anonymous()),
-            CreateBindingTrace(BindingTarget.Realtime, new AuthState.Anonymous())
+            new AuthTraceScenarioStep.SignIn(CreateSession("signed-in-token", "refresh-token", 1800)),
+            new AuthTraceScenarioStep.Refresh(CreateSession("refreshed-token", "refresh-token-2", 3600)),
+            new AuthTraceScenarioStep.SignOut(),
+            new AuthTraceScenarioStep.IgnoreStaleRefreshAfterSignOut(CreateSession("stale-token", "stale-refresh-token", 3600))
         };
-        var machine = new CanonicalAuthStateMachine();
+        var expected = AuthTraceExpectationBuilder
+            .StartWithAnonymousBindings()
+            .Apply(steps)
+            .Build();
 
-        ApplySignedIn(auth, machine, expected, "signed-in-token", "refresh-token", 1800);
-        ApplyRefresh(auth, machine, expected, "refreshed-token", "refresh-token-2", 3600);
-        ApplySignOut(auth, machine, expected);
-        ApplyStaleRefreshAfterSignOut(auth, machine, "stale-token", "stale-refresh-token", 3600);
+        ExecuteScenario(auth, steps);
 
-        Assert.Equal(expected, traceSink.Snapshot());
+        RuntimeTraceAssert.EqualSequence(expected, traceSink.Snapshot());
         Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
         Assert.Equal(string.Empty, ReadPrivateStringMember(realtime, "AccessToken"));
     }
@@ -62,123 +63,53 @@ public sealed class AuthRuntimeTraceConformanceTests
             metrics: null,
             traceSink: traceSink);
 
-        var expected = new List<RuntimeTraceEvent>
+        var steps = new AuthTraceScenarioStep[]
         {
-            CreateBindingTrace(BindingTarget.Header, new AuthState.Anonymous()),
-            CreateBindingTrace(BindingTarget.Realtime, new AuthState.Anonymous())
+            new AuthTraceScenarioStep.SignIn(CreateSession("signed-in-token", "refresh-token", 1800)),
+            new AuthTraceScenarioStep.FaultedRefresh("Token refresh completed without a valid session.")
         };
-        var machine = new CanonicalAuthStateMachine();
+        var expected = AuthTraceExpectationBuilder
+            .StartWithAnonymousBindings()
+            .Apply(steps)
+            .Build();
 
-        ApplySignedIn(auth, machine, expected, "signed-in-token", "refresh-token", 1800);
-        ApplyFaultedRefresh(auth, machine, expected);
+        ExecuteScenario(auth, steps);
 
-        Assert.Equal(expected, traceSink.Snapshot());
+        RuntimeTraceAssert.EqualSequence(expected, traceSink.Snapshot());
         Assert.DoesNotContain("Authorization", dynamicHeaders.Build().Keys);
         Assert.Equal(string.Empty, ReadPrivateStringMember(realtime, "AccessToken"));
     }
 
-    private static void ApplySignedIn(
-        global::Supabase.Gotrue.Client auth,
-        CanonicalAuthStateMachine machine,
-        List<RuntimeTraceEvent> expected,
-        string accessToken,
-        string refreshToken,
-        long expiresIn)
+    private static void ExecuteScenario(global::Supabase.Gotrue.Client auth, params AuthTraceScenarioStep[] steps)
     {
-        var session = CreateSession(accessToken, refreshToken, expiresIn);
-        SetCurrentSession(auth, session);
-        var snapshot = CreateSnapshot(session);
-        var state = machine.AdvanceAuthenticated(snapshot);
-
-        AppendPublishedAndProjected(expected, AuthTraceKind.SignedInPublished, state);
-        auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
-    }
-
-    private static void ApplyRefresh(
-        global::Supabase.Gotrue.Client auth,
-        CanonicalAuthStateMachine machine,
-        List<RuntimeTraceEvent> expected,
-        string accessToken,
-        string refreshToken,
-        long expiresIn)
-    {
-        var session = CreateSession(accessToken, refreshToken, expiresIn);
-        SetCurrentSession(auth, session);
-        var snapshot = CreateSnapshot(session);
-
-        var refreshing = machine.BeginRefresh(snapshot);
-        AppendPublishedAndProjected(expected, AuthTraceKind.RefreshBeginPublished, refreshing);
-
-        var authenticated = machine.CompleteRefresh(snapshot);
-        AppendPublishedAndProjected(expected, AuthTraceKind.RefreshCompletedPublished, authenticated);
-
-        auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
-    }
-
-    private static void ApplySignOut(
-        global::Supabase.Gotrue.Client auth,
-        CanonicalAuthStateMachine machine,
-        List<RuntimeTraceEvent> expected)
-    {
-        Assert.True(machine.TrySignOut(out var signedOut));
-        SetCurrentSession(auth, null);
-        AppendPublishedAndProjected(expected, AuthTraceKind.SignedOutPublished, signedOut);
-        auth.NotifyAuthStateChange(GotrueAuthState.SignedOut);
-    }
-
-    private static void ApplyStaleRefreshAfterSignOut(
-        global::Supabase.Gotrue.Client auth,
-        CanonicalAuthStateMachine machine,
-        string accessToken,
-        string refreshToken,
-        long expiresIn)
-    {
-        Assert.True(machine.TryIgnoreStaleRefreshResultAfterSignOut());
-        SetCurrentSession(auth, CreateSession(accessToken, refreshToken, expiresIn));
-        auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
-    }
-
-    private static void ApplyFaultedRefresh(
-        global::Supabase.Gotrue.Client auth,
-        CanonicalAuthStateMachine machine,
-        List<RuntimeTraceEvent> expected)
-    {
-        SetCurrentSession(auth, null);
-        var faulted = machine.Fault("Token refresh completed without a valid session.");
-        AppendPublishedAndProjected(expected, AuthTraceKind.FaultedPublished, faulted);
-        auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
-    }
-
-    private static void AppendPublishedAndProjected(List<RuntimeTraceEvent> expected, AuthTraceKind kind, AuthState state)
-    {
-        expected.Add(new AuthTraceEvent(
-            kind,
-            CanonicalAuthStateMachine.ToStateName(state),
-            state.CanonicalVersion,
-            CanonicalAuthStateMachine.GetPendingRefreshVersion(state)));
-        expected.Add(CreateBindingTrace(BindingTarget.Header, state));
-        expected.Add(CreateBindingTrace(BindingTarget.Realtime, state));
-    }
-
-    private static BindingProjectionTraceEvent CreateBindingTrace(BindingTarget target, AuthState state)
-    {
-        var action = state is AuthState.Authenticated or AuthState.Refreshing
-            ? BindingProjectionAction.Applied
-            : BindingProjectionAction.Cleared;
-
-        return new BindingProjectionTraceEvent(
-            target,
-            action,
-            CanonicalAuthStateMachine.ToStateName(state),
-            state.CanonicalVersion,
-            CanonicalAuthStateMachine.GetPendingRefreshVersion(state),
-            CanonicalAuthStateMachine.GetProjectionVersion(state));
-    }
-
-    private static SessionSnapshot CreateSnapshot(global::Supabase.Gotrue.Session session)
-    {
-        Assert.True(GotrueAuthStateBridge.TryCreateSessionSnapshot(session, out var snapshot));
-        return snapshot;
+        foreach (var step in steps)
+        {
+            switch (step)
+            {
+                case AuthTraceScenarioStep.SignIn(var session):
+                    SetCurrentSession(auth, session);
+                    auth.NotifyAuthStateChange(GotrueAuthState.SignedIn);
+                    break;
+                case AuthTraceScenarioStep.Refresh(var session):
+                    SetCurrentSession(auth, session);
+                    auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
+                    break;
+                case AuthTraceScenarioStep.SignOut:
+                    SetCurrentSession(auth, null);
+                    auth.NotifyAuthStateChange(GotrueAuthState.SignedOut);
+                    break;
+                case AuthTraceScenarioStep.FaultedRefresh:
+                    SetCurrentSession(auth, null);
+                    auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
+                    break;
+                case AuthTraceScenarioStep.IgnoreStaleRefreshAfterSignOut(var session):
+                    SetCurrentSession(auth, session);
+                    auth.NotifyAuthStateChange(GotrueAuthState.TokenRefreshed);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(step), step, "Unknown auth trace scenario step.");
+            }
+        }
     }
 
     private static global::Supabase.Gotrue.Client CreateAuthClient()
