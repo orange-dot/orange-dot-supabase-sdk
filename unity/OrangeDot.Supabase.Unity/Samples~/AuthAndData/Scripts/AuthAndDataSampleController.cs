@@ -21,8 +21,14 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
     [Header("Data")]
     public string NewTodoTitle = "Created from Unity";
 
+    [Header("Functions")]
+    public string FunctionName = "unity-hello";
+
+    public string FunctionMessage = "Hello from Unity";
+
     private SupabaseUnityClient? _client;
     private List<UnityTodoItem> _items = new();
+    private string _lastFunctionResponse = "(none yet)";
     private string _status = "Configure ProjectUrl and AnonKey, then initialize.";
     private bool _busy;
 
@@ -50,6 +56,8 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         Email = LabeledTextField("Email", Email);
         Password = LabeledPasswordField("Password", Password);
         NewTodoTitle = LabeledTextField("New Todo", NewTodoTitle);
+        FunctionName = LabeledTextField("Function Name", FunctionName);
+        FunctionMessage = LabeledTextField("Function Message", FunctionMessage);
 
         GUILayout.Space(8);
         GUILayout.Label($"Busy: {_busy}");
@@ -81,6 +89,11 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
                 _ = LoadTodosAsync();
             }
 
+            if (GUILayout.Button("Invoke Function"))
+            {
+                _ = InvokeFunctionAsync();
+            }
+
             if (GUILayout.Button("Sign Out"))
             {
                 _ = SignOutAsync();
@@ -94,6 +107,10 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         {
             GUILayout.Label($"- #{item.Id} {item.Title} ({item.CreatedAt:u})");
         }
+
+        GUILayout.Space(8);
+        GUILayout.Label("Function Response:");
+        GUILayout.Label(_lastFunctionResponse);
 
         GUILayout.EndArea();
     }
@@ -247,7 +264,50 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         {
             await _client!.SignOutAsync();
             _items.Clear();
+            _lastFunctionResponse = "(none yet)";
             _status = "Signed out.";
+        }
+        catch (Exception ex)
+        {
+            _status = ex.Message;
+            Debug.LogException(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task InvokeFunctionAsync()
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(FunctionName))
+        {
+            _status = "FunctionName is required.";
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            var response = await _client!.InvokeFunctionAsync(
+                FunctionName,
+                new Dictionary<string, object>
+                {
+                    ["message"] = string.IsNullOrWhiteSpace(FunctionMessage)
+                        ? "Hello from Unity"
+                        : FunctionMessage,
+                    ["userId"] = _client.CurrentUser!.Id,
+                    ["email"] = _client.CurrentUser!.Email ?? string.Empty
+                });
+
+            _lastFunctionResponse = response;
+            _status = $"Invoked function '{FunctionName}'.";
         }
         catch (Exception ex)
         {

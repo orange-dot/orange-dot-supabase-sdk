@@ -4,11 +4,18 @@ namespace OrangeDot.Supabase.Unity
 {
 public sealed class SupabaseUnityUrls
 {
-    private SupabaseUnityUrls(string normalizedProjectUrl, string authUrl, string restUrl)
+    private SupabaseUnityUrls(
+        string normalizedProjectUrl,
+        string authUrl,
+        string restUrl,
+        string functionsUrl,
+        string storageUrl)
     {
         NormalizedProjectUrl = normalizedProjectUrl;
         AuthUrl = authUrl;
         RestUrl = restUrl;
+        FunctionsUrl = functionsUrl;
+        StorageUrl = storageUrl;
     }
 
     public string NormalizedProjectUrl { get; }
@@ -16,6 +23,10 @@ public sealed class SupabaseUnityUrls
     public string AuthUrl { get; }
 
     public string RestUrl { get; }
+
+    public string FunctionsUrl { get; }
+
+    public string StorageUrl { get; }
 
     public static SupabaseUnityUrls FromProjectUrl(string projectUrl)
     {
@@ -41,7 +52,9 @@ public sealed class SupabaseUnityUrls
         return new SupabaseUnityUrls(
             normalizedProjectUrl,
             BuildEndpoint(normalizedProject, normalizedProject.Scheme, "auth/v1", hasExplicitPort),
-            BuildEndpoint(normalizedProject, normalizedProject.Scheme, "rest/v1", hasExplicitPort));
+            BuildEndpoint(normalizedProject, normalizedProject.Scheme, "rest/v1", hasExplicitPort),
+            BuildEndpoint(normalizedProject, normalizedProject.Scheme, "functions/v1", hasExplicitPort),
+            BuildEndpoint(normalizedProject, normalizedProject.Scheme, "storage/v1", hasExplicitPort));
     }
 
     private static Uri NormalizeProjectUri(Uri parsed)

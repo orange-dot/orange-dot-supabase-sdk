@@ -6,6 +6,7 @@ This sample is the first Unity-facing slice for the repo:
 - sign in with email and password
 - insert a row into a user-owned table
 - query that same table through `Postgrest`
+- optionally invoke an authenticated Edge Function
 - sign out and clear local state
 
 ## Demo Table
@@ -44,3 +45,31 @@ with check (auth.uid() = owner_id);
 5. Press Play.
 
 The sample uses `UnitySessionPersistence(Application.persistentDataPath)` so the last session is restored across runs.
+
+## Optional Edge Function
+
+If you want to exercise the `Functions` surface from the same scene, deploy a simple function named `unity-hello`:
+
+```ts
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+
+serve(async (req) => {
+  const body = await req.json().catch(() => ({}));
+
+  return Response.json({
+    ok: true,
+    message: body.message ?? "Hello from Unity",
+    userId: body.userId ?? null,
+    email: body.email ?? null,
+    receivedAt: new Date().toISOString()
+  });
+});
+```
+
+Deploy it with:
+
+```bash
+supabase functions deploy unity-hello
+```
+
+After you sign in through the sample scene, click `Invoke Function` to POST the current user context and display the response in the UI.

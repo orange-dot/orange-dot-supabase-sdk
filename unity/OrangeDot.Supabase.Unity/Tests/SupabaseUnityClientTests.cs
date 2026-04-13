@@ -19,9 +19,15 @@ public sealed class SupabaseUnityClientTests
         await client.InitializeAsync();
 
         var headers = client.Postgrest.GetHeaders!.Invoke();
+        var functionHeaders = client.Functions.GetHeaders!.Invoke();
+        var storageHeaders = client.Storage.GetHeaders!.Invoke();
 
         Assert.Equal("anon-key", headers["apikey"]);
+        Assert.Equal("anon-key", functionHeaders["apikey"]);
+        Assert.Equal("anon-key", storageHeaders["apikey"]);
         Assert.False(headers.ContainsKey("Authorization"));
+        Assert.False(functionHeaders.ContainsKey("Authorization"));
+        Assert.False(storageHeaders.ContainsKey("Authorization"));
     }
 
     [Fact]
@@ -48,10 +54,14 @@ public sealed class SupabaseUnityClientTests
 
         var session = await client.InitializeAsync();
         var headers = client.Postgrest.GetHeaders!.Invoke();
+        var functionHeaders = client.Functions.GetHeaders!.Invoke();
+        var storageHeaders = client.Storage.GetHeaders!.Invoke();
 
         Assert.NotNull(session);
         Assert.Equal("persisted-access-token", session!.AccessToken);
         Assert.Equal("Bearer persisted-access-token", headers["Authorization"]);
+        Assert.Equal("Bearer persisted-access-token", functionHeaders["Authorization"]);
+        Assert.Equal("Bearer persisted-access-token", storageHeaders["Authorization"]);
         Assert.Equal("persisted@example.com", client.CurrentUser!.Email);
     }
 

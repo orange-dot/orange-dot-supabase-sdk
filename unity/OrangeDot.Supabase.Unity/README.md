@@ -1,23 +1,29 @@
 # Orange Dot Supabase Unity
 
-`OrangeDot.Supabase.Unity` is a Unity-first prototype package built on top of the portable `Supabase.Core`, `Supabase.Gotrue`, and `Supabase.Postgrest` child modules in this repo.
+`OrangeDot.Supabase.Unity` is a Unity-first prototype package built on top of the portable `Supabase.Core`, `Supabase.Gotrue`, `Supabase.Postgrest`, `Supabase.Functions`, and `Supabase.Storage` child modules in this repo.
 
 This package is intentionally narrow in `v0.1`:
 
 - Auth session restore and email/password sign-in
 - File-backed session persistence for Unity apps
 - Auth-aware PostgREST access for typed data queries
-- One importable sample that shows login, insert, query, and sign-out
+- Auth-aware Edge Functions access
+- Auth-aware Storage access
+- One importable sample that shows login, insert, query, optional function invocation, and sign-out
 
-This package does **not** claim broad Unity coverage for the whole repo. `Realtime`, `Storage`, `Functions`, and the root server-side `OrangeDot.Supabase` package are outside this first Unity slice.
+This package does **not** claim broad Unity coverage for the whole repo. `Realtime` and the root server-side `OrangeDot.Supabase` package are outside this Unity slice.
 
 ## Package Setup
 
 In a Unity project, add these local packages from disk:
 
+- `unity/Vendor/BirdMessenger/package.json`
+- `unity/Vendor/MimeMapping/package.json`
 - `modules/core-csharp/Core/package.json`
 - `modules/gotrue-csharp/Gotrue/package.json`
 - `modules/postgrest-csharp/Postgrest/package.json`
+- `modules/functions-csharp/Functions/package.json`
+- `modules/storage-csharp/Storage/package.json`
 - `unity/OrangeDot.Supabase.Unity/package.json`
 
 Also install:
@@ -32,6 +38,13 @@ The package exposes:
 - `SupabaseUnityUrls`
 - `SupabaseUnityClient`
 - `UnitySessionPersistence`
+
+`SupabaseUnityClient` exposes:
+
+- `Auth`
+- `Postgrest`
+- `Functions`
+- `Storage`
 
 Typical composition:
 
@@ -60,7 +73,9 @@ The sample contains:
 
 - `AuthAndDataSampleController`
 - `UnityTodoItem`
-- a short sample README with SQL for the demo table and RLS policies
+- a short sample README with SQL for the demo table, RLS policies, and an optional Edge Function
+
+The sample remains runnable with just auth + data. If you also deploy the optional `unity-hello` Edge Function from the sample README, the same scene can exercise the `Functions` client after sign-in. `Storage` is exposed by the runtime package in this slice, but the first sample scene does not use it yet.
 
 The controller uses `OnGUI`, so you can test it quickly by:
 

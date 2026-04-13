@@ -1,6 +1,10 @@
 spec/tla/states/
 **/bin/
+**/bin.meta
 **/obj/
+**/obj.meta
+**/*.csproj.meta
+**/*.sln.meta
 TestResults/
 supabase/.branches/
 supabase/.temp/
@@ -18,3 +22,14 @@ rust/
 upstream/
 rust/target/
 rust/Cargo.lock
+unity/SmokeHost/Library/
+unity/SmokeHost/Logs/
+unity/SmokeHost/Temp/
+unity/SmokeHost/Obj/
+unity/SmokeHost/Obj.meta
+unity/SmokeHost/UserSettings/
+unity/SmokeHost/UserSettings.meta
+unity/SmokeHost/LocalPackages/
+unity/SmokeHost/LocalPackages.meta
+unity/SmokeHost/Assets/Samples/
+unity/SmokeHost/Assets/Samples.meta

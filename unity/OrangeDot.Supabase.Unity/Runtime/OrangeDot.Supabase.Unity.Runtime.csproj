@@ -18,5 +18,11 @@
     <ProjectReference Include="..\..\..\modules\postgrest-csharp\Postgrest\Postgrest.csproj">
       <SetTargetFramework>TargetFramework=netstandard2.0</SetTargetFramework>
     </ProjectReference>
+    <ProjectReference Include="..\..\..\modules\functions-csharp\Functions\Functions.csproj">
+      <SetTargetFramework>TargetFramework=netstandard2.0</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\modules\storage-csharp\Storage\Storage.csproj">
+      <SetTargetFramework>TargetFramework=netstandard2.0</SetTargetFramework>
+    </ProjectReference>
   </ItemGroup>
 </Project>

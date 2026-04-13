@@ -25,12 +25,17 @@ Start with:
 
 Current Unity package flow on this branch:
 
+- `unity/Vendor/BirdMessenger/`
+- `unity/Vendor/MimeMapping/`
 - `modules/core-csharp/Core/`
 - `modules/gotrue-csharp/Gotrue/`
 - `modules/postgrest-csharp/Postgrest/`
+- `modules/functions-csharp/Functions/`
+- `modules/storage-csharp/Storage/`
 - `unity/OrangeDot.Supabase.Unity/`
 
-The current committed Unity slice is `Auth + Data`.
+The current committed Unity runtime slice is `Auth + Data + Functions + Storage`.
+The sample slice remains `Auth + Data`.
 
 ## Reference Material
 
@@ -57,7 +62,7 @@ Do not load the whole file by default. Read only the sections that matter:
   - avoid accidental boxing in frequently executed code
 - Prefer file-backed session persistence over `PlayerPrefs` for auth/session storage unless the task explicitly wants a different tradeoff.
 - Keep samples narrow and runnable. One scene, one clear flow, explicit SQL/setup notes.
-- Do not claim `Realtime`, `Storage`, or `Functions` Unity support until the branch actually validates them.
+- Do not claim `Realtime` Unity support until the branch actually validates it.
 
 ## Working Pattern
 

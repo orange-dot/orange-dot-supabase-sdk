@@ -3,6 +3,8 @@
   "rootNamespace": "OrangeDot.Supabase.Unity.Samples.AuthAndData",
   "references": [
     "OrangeDot.Supabase.Unity",
+    "Supabase.Core",
+    "Supabase.Gotrue",
     "Supabase.Postgrest"
   ],
   "includePlatforms": [],

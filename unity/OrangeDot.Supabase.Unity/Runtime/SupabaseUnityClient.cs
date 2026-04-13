@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Supabase.Functions.Interfaces;
 using Supabase.Gotrue;
 using Supabase.Gotrue.Interfaces;
 using Supabase.Postgrest;
 using Supabase.Postgrest.Interfaces;
 using Supabase.Postgrest.Models;
+using Supabase.Storage.Interfaces;
 using static Supabase.Gotrue.Constants;
 
 namespace OrangeDot.Supabase.Unity
@@ -41,6 +43,8 @@ public sealed class SupabaseUnityClient : IDisposable
 
         Auth = CreateAuthClient(options, sessionPersistence);
         Postgrest = CreatePostgrestClient(options);
+        Functions = CreateFunctionsClient();
+        Storage = CreateStorageClient(options);
     }
 
     public SupabaseUnityUrls Urls { get; }
@@ -48,6 +52,10 @@ public sealed class SupabaseUnityClient : IDisposable
     public IGotrueClient<User, Session> Auth { get; }
 
     public IPostgrestClient Postgrest { get; }
+
+    public IFunctionsClient Functions { get; }
+
+    public IStorageClient<global::Supabase.Storage.Bucket, global::Supabase.Storage.FileObject> Storage { get; }
 
     public Session? CurrentSession => Auth.CurrentSession;
 
@@ -100,6 +108,20 @@ public sealed class SupabaseUnityClient : IDisposable
         return Postgrest.Table<TModel>();
     }
 
+    public Task<string> InvokeFunctionAsync(string functionName, Dictionary<string, object>? body = null)
+    {
+        ThrowIfDisposed();
+
+        return Functions.Invoke(
+            functionName,
+            options: body is null
+                ? null
+                : new global::Supabase.Functions.Client.InvokeFunctionOptions
+                {
+                    Body = body
+                });
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -139,6 +161,23 @@ public sealed class SupabaseUnityClient : IDisposable
 
         postgrestClient.GetHeaders = CreateDynamicHeaders;
         return postgrestClient;
+    }
+
+    private IFunctionsClient CreateFunctionsClient()
+    {
+        var functionsClient = new global::Supabase.Functions.Client(Urls.FunctionsUrl);
+        functionsClient.GetHeaders = CreateDynamicHeaders;
+        return functionsClient;
+    }
+
+    private IStorageClient<global::Supabase.Storage.Bucket, global::Supabase.Storage.FileObject> CreateStorageClient(
+        SupabaseUnityOptions options)
+    {
+        var storageClient = new global::Supabase.Storage.Client(
+            Urls.StorageUrl,
+            CreateDefaultHeaders(options.AnonKey));
+        storageClient.GetHeaders = CreateDynamicHeaders;
+        return storageClient;
     }
 
     private Dictionary<string, string> CreateDynamicHeaders()

@@ -99,8 +99,9 @@ Those fixtures support both smoke checks and the broader sample API flow.
 
 This `dev` branch also carries a separate Unity-first prototype line under `unity/`.
 
-- `unity/OrangeDot.Supabase.Unity/` contains the Unity-facing composition package for auth and data.
-- `modules/core-csharp/Core/`, `modules/gotrue-csharp/Gotrue/`, and `modules/postgrest-csharp/Postgrest/` also act as Unity package roots on this branch.
+- `unity/OrangeDot.Supabase.Unity/` contains the Unity-facing composition package for auth, data, Edge Functions, and storage.
+- `unity/Vendor/BirdMessenger/` and `unity/Vendor/MimeMapping/` wrap third-party dependencies needed by the storage slice.
+- `modules/core-csharp/Core/`, `modules/gotrue-csharp/Gotrue/`, `modules/postgrest-csharp/Postgrest/`, `modules/functions-csharp/Functions/`, and `modules/storage-csharp/Storage/` also act as Unity package roots on this branch.
 - the root `src/OrangeDot.Supabase/` package remains the server-side line and is not presented as a Unity package.
 
 ## Long-Lived Client

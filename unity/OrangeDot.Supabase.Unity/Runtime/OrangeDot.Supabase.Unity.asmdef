@@ -2,8 +2,11 @@
   "name": "OrangeDot.Supabase.Unity",
   "rootNamespace": "OrangeDot.Supabase.Unity",
   "references": [
+    "Supabase.Core",
     "Supabase.Gotrue",
-    "Supabase.Postgrest"
+    "Supabase.Postgrest",
+    "Supabase.Functions",
+    "Supabase.Storage"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

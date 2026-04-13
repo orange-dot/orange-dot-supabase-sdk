@@ -1,0 +1,10 @@
+{
+  "name": "com.orange-dot.vendor.mimemapping",
+  "version": "3.0.1",
+  "displayName": "Orange Dot Vendor MimeMapping",
+  "description": "UPM wrapper for the MimeMapping netstandard2.0 assembly used by the Orange Dot Supabase Unity prototype.",
+  "unity": "2022.3",
+  "author": {
+    "name": "Orange Dot"
+  }
+}
