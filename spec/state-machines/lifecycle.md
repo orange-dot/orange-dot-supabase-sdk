@@ -16,7 +16,7 @@ The orchestration lifecycle is modeled as explicit states rather than constructo
 
 The public lifecycle above is intentionally small.
 
-The TLA+ model refines it with `Hydrating`, `Initializing`, `Cancelled`, and `Failed` so in-flight bootstrap, cancellation, and failure ordering can be checked without changing the public orchestration shape.
+The hosted lifecycle TLA+ model keeps the public shell gate together with the hosted startup coordinator. It makes `LoadingSession`, `Initializing`, `Canceled`, `Faulted`, and the pre-publish overlap explicit so stop-before-publish ordering can be checked without changing the public orchestration shape.
 
 ## Transition Graph
 

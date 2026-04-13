@@ -24,8 +24,16 @@ jobs:
         run: bash scripts/validate-test-vectors.sh
 
   tla-check:
-    name: TLC auth propagation model
+    name: TLC ${{ matrix.model.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - name: auth propagation model
+            script: scripts/run-auth-tlc.sh
+          - name: hosted lifecycle model
+            script: scripts/run-lifecycle-tlc.sh
     env:
       TLA_TOOLS_DIR: ${{ runner.temp }}/tla
       TLA_VERSION: 1.7.4
@@ -40,7 +48,7 @@ jobs:
           java-version: "17"
 
       - name: Run TLC
-        run: bash scripts/run-auth-tlc.sh
+        run: bash ${{ matrix.model.script }}
 
   build-and-test:
     name: ${{ matrix.os }}

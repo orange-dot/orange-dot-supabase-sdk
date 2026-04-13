@@ -36,7 +36,6 @@ internal sealed class StartupServiceStateMachine
     {
         Require(
             _phase is StartupServicePhase.Idle
-                or StartupServicePhase.ReadyPublished
                 or StartupServicePhase.PublicationSkippedBecauseStopping
                 or StartupServicePhase.Faulted
                 or StartupServicePhase.Canceled,
@@ -57,8 +56,8 @@ internal sealed class StartupServiceStateMachine
     internal void PublishReady()
     {
         Require(
-            _phase is StartupServicePhase.PreparingClient or StartupServicePhase.PrePublishWindow,
-            "publish_ready requires a prepared client.");
+            _phase == StartupServicePhase.PrePublishWindow,
+            "publish_ready requires the pre-publish window.");
         Require(!_stopRequested, "publish_ready cannot occur after stop was requested.");
         _phase = StartupServicePhase.ReadyPublished;
     }
@@ -89,8 +88,8 @@ internal sealed class StartupServiceStateMachine
     {
         Require(_stopRequested, "skip_ready_publication_because_stopping requires stop to be requested.");
         Require(
-            _phase is StartupServicePhase.PreparingClient or StartupServicePhase.PrePublishWindow,
-            "skip_ready_publication_because_stopping requires a prepared client.");
+            _phase == StartupServicePhase.PrePublishWindow,
+            "skip_ready_publication_because_stopping requires the pre-publish window.");
         _publicationSkips++;
         _phase = StartupServicePhase.PublicationSkippedBecauseStopping;
     }
