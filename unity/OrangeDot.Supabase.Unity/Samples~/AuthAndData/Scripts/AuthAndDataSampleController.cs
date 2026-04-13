@@ -26,9 +26,22 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
 
     public string FunctionMessage = "Hello from Unity";
 
+    [Header("Storage")]
+    public string StorageBucket = "unity-sample";
+
+    public string UploadFileName = "sample-note.txt";
+
+    [TextArea(3, 6)]
+    public string UploadText = "Hello from Unity storage";
+
+    public int SignedUrlExpiresInSeconds = 3600;
+
     private SupabaseUnityClient? _client;
     private List<UnityTodoItem> _items = new();
+    private readonly List<string> _storageEntries = new();
     private string _lastFunctionResponse = "(none yet)";
+    private string _lastUploadedPath = "(none yet)";
+    private string _lastSignedUrl = "(none yet)";
     private string _status = "Configure ProjectUrl and AnonKey, then initialize.";
     private bool _busy;
 
@@ -58,12 +71,17 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         NewTodoTitle = LabeledTextField("New Todo", NewTodoTitle);
         FunctionName = LabeledTextField("Function Name", FunctionName);
         FunctionMessage = LabeledTextField("Function Message", FunctionMessage);
+        StorageBucket = LabeledTextField("Storage Bucket", StorageBucket);
+        UploadFileName = LabeledTextField("Upload File Name", UploadFileName);
+        UploadText = LabeledTextArea("Upload Text", UploadText, 72f);
+        SignedUrlExpiresInSeconds = LabeledIntField("Signed URL Seconds", SignedUrlExpiresInSeconds);
 
         GUILayout.Space(8);
         GUILayout.Label($"Busy: {_busy}");
         GUILayout.Label($"Authenticated: {_client?.IsAuthenticated == true}");
         GUILayout.Label($"User: {_client?.CurrentUser?.Email ?? _client?.CurrentUser?.Id ?? "(anonymous)"}");
         GUILayout.Label($"Status: {_status}");
+        GUILayout.Label($"Last Uploaded Path: {_lastUploadedPath}");
 
         GUILayout.Space(8);
 
@@ -94,6 +112,21 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
                 _ = InvokeFunctionAsync();
             }
 
+            if (GUILayout.Button("Upload Sample Bytes"))
+            {
+                _ = UploadSampleBytesAsync();
+            }
+
+            if (GUILayout.Button("List Bucket Files"))
+            {
+                _ = ListBucketFilesAsync();
+            }
+
+            if (GUILayout.Button("Create Signed Url"))
+            {
+                _ = CreateSignedUrlAsync();
+            }
+
             if (GUILayout.Button("Sign Out"))
             {
                 _ = SignOutAsync();
@@ -111,6 +144,18 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         GUILayout.Space(8);
         GUILayout.Label("Function Response:");
         GUILayout.Label(_lastFunctionResponse);
+
+        GUILayout.Space(8);
+        GUILayout.Label("Storage Files:");
+
+        foreach (var entry in _storageEntries)
+        {
+            GUILayout.Label($"- {entry}");
+        }
+
+        GUILayout.Space(8);
+        GUILayout.Label("Signed URL:");
+        GUILayout.Label(_lastSignedUrl);
 
         GUILayout.EndArea();
     }
@@ -263,9 +308,119 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         try
         {
             await _client!.SignOutAsync();
-            _items.Clear();
-            _lastFunctionResponse = "(none yet)";
+            ResetTransientState();
             _status = "Signed out.";
+        }
+        catch (Exception ex)
+        {
+            _status = ex.Message;
+            Debug.LogException(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task UploadSampleBytesAsync()
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(StorageBucket))
+        {
+            _status = "StorageBucket is required.";
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            var objectPath = BuildStorageObjectPath(_client!.CurrentUser!.Id, UploadFileName);
+            await _client.UploadTextAsync(StorageBucket, objectPath, UploadText);
+            _lastUploadedPath = objectPath;
+            _status = $"Uploaded '{objectPath}' to bucket '{StorageBucket}'.";
+            await ListBucketFilesCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            _status = ex.Message;
+            Debug.LogException(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ListBucketFilesAsync()
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(StorageBucket))
+        {
+            _status = "StorageBucket is required.";
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            await ListBucketFilesCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            _status = ex.Message;
+            Debug.LogException(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateSignedUrlAsync()
+    {
+        if (!EnsureAuthenticated())
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(StorageBucket))
+        {
+            _status = "StorageBucket is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_lastUploadedPath) || _lastUploadedPath == "(none yet)")
+        {
+            _status = "Upload a sample file first.";
+            return;
+        }
+
+        if (SignedUrlExpiresInSeconds <= 0)
+        {
+            _status = "SignedUrlExpiresInSeconds must be greater than zero.";
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            _lastSignedUrl = await _client!.CreateSignedUrlAsync(
+                StorageBucket,
+                _lastUploadedPath,
+                SignedUrlExpiresInSeconds);
+
+            _status = $"Created a signed URL for '{_lastUploadedPath}'.";
         }
         catch (Exception ex)
         {
@@ -357,6 +512,65 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
     {
         GUILayout.Label(label);
         return GUILayout.PasswordField(value ?? string.Empty, '*');
+    }
+
+    private static string LabeledTextArea(string label, string value, float height)
+    {
+        GUILayout.Label(label);
+        return GUILayout.TextArea(value ?? string.Empty, GUILayout.MinHeight(height));
+    }
+
+    private static int LabeledIntField(string label, int value)
+    {
+        GUILayout.Label(label);
+
+        if (int.TryParse(GUILayout.TextField(value.ToString()), out var parsed))
+        {
+            return parsed;
+        }
+
+        return value;
+    }
+
+    private static string BuildStorageObjectPath(string userId, string fileName)
+    {
+        var normalizedName = string.IsNullOrWhiteSpace(fileName)
+            ? "sample-note.txt"
+            : fileName.Trim().Replace(' ', '-');
+
+        if (!normalizedName.Contains('.'))
+        {
+            normalizedName += ".txt";
+        }
+
+        return $"{userId}/{normalizedName}";
+    }
+
+    private async Task ListBucketFilesCoreAsync()
+    {
+        var prefix = _client!.CurrentUser!.Id;
+        var files = await _client.ListFilesAsync(StorageBucket, prefix);
+
+        _storageEntries.Clear();
+
+        foreach (var file in files)
+        {
+            var displayName = file.Name ?? "(unnamed)";
+            var timestamp = file.UpdatedAt ?? file.CreatedAt;
+            var suffix = timestamp.HasValue ? $" ({timestamp.Value:u})" : string.Empty;
+            _storageEntries.Add($"{displayName}{suffix}");
+        }
+
+        _status = $"Loaded {_storageEntries.Count} storage object(s) from '{StorageBucket}'.";
+    }
+
+    private void ResetTransientState()
+    {
+        _items.Clear();
+        _storageEntries.Clear();
+        _lastFunctionResponse = "(none yet)";
+        _lastUploadedPath = "(none yet)";
+        _lastSignedUrl = "(none yet)";
     }
 
     private readonly struct EditorLikeDisabledScope : IDisposable

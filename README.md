@@ -102,6 +102,7 @@ This `dev` branch also carries a separate Unity-first prototype line under `unit
 - `unity/OrangeDot.Supabase.Unity/` contains the Unity-facing composition package for auth, data, Edge Functions, and storage.
 - `unity/Vendor/BirdMessenger/` and `unity/Vendor/MimeMapping/` wrap third-party dependencies needed by the storage slice.
 - `modules/core-csharp/Core/`, `modules/gotrue-csharp/Gotrue/`, `modules/postgrest-csharp/Postgrest/`, `modules/functions-csharp/Functions/`, and `modules/storage-csharp/Storage/` also act as Unity package roots on this branch.
+- the first Unity sample now demonstrates auth, PostgREST queries, optional Edge Function invocation, and authenticated storage upload/list/signed-url flow from one scene.
 - the root `src/OrangeDot.Supabase/` package remains the server-side line and is not presented as a Unity package.
 
 ## Long-Lived Client

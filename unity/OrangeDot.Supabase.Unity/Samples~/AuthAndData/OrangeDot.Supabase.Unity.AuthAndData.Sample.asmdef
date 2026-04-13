@@ -5,7 +5,8 @@
     "OrangeDot.Supabase.Unity",
     "Supabase.Core",
     "Supabase.Gotrue",
-    "Supabase.Postgrest"
+    "Supabase.Postgrest",
+    "Supabase.Storage"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

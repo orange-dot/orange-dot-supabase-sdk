@@ -13,7 +13,7 @@ Current shape:
 - `modules/storage-csharp/Storage` -> Unity package root for storage
 - `unity/OrangeDot.Supabase.Unity` -> Unity-facing composition package and sample
 
-The current sample scene stays centered on auth + data, with an optional Edge Function call path if you deploy the example function from the package README. The runtime package now also exposes storage composition, but that path is not in the first sample scene yet.
+The current sample scene covers auth + data, with optional Edge Function and authenticated Storage flows from the same controller. The runtime package composes storage directly and the sample now demonstrates upload, list, and signed URL creation against a user-scoped path inside a pre-created bucket.
 
 The root `src/OrangeDot.Supabase` package remains the server-side line. The Unity work on this branch composes child modules directly instead of trying to reuse hosted startup or DI-oriented code from the root package.
 

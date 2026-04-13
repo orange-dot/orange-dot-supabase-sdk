@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Supabase.Functions.Interfaces;
@@ -120,6 +121,55 @@ public sealed class SupabaseUnityClient : IDisposable
                 {
                     Body = body
                 });
+    }
+
+    public Task<string> UploadTextAsync(
+        string bucket,
+        string path,
+        string text,
+        string contentType = "text/plain;charset=UTF-8")
+    {
+        ThrowIfDisposed();
+
+        return Storage
+            .From(bucket)
+            .Upload(
+                Encoding.UTF8.GetBytes(text ?? string.Empty),
+                path,
+                new global::Supabase.Storage.FileOptions
+                {
+                    ContentType = contentType,
+                    Upsert = true
+                },
+                inferContentType: false);
+    }
+
+    public async Task<IReadOnlyList<global::Supabase.Storage.FileObject>> ListFilesAsync(string bucket, string prefix)
+    {
+        ThrowIfDisposed();
+
+        var files = await Storage
+            .From(bucket)
+            .List(
+                prefix,
+                new global::Supabase.Storage.SearchOptions
+                {
+                    Limit = 20
+                })
+            .ConfigureAwait(false);
+
+        if (files is not null)
+        {
+            return files;
+        }
+
+        return Array.Empty<global::Supabase.Storage.FileObject>();
+    }
+
+    public Task<string> CreateSignedUrlAsync(string bucket, string path, int expiresInSeconds)
+    {
+        ThrowIfDisposed();
+        return Storage.From(bucket).CreateSignedUrl(path, expiresInSeconds);
     }
 
     public void Dispose()

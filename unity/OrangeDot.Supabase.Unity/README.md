@@ -9,7 +9,7 @@ This package is intentionally narrow in `v0.1`:
 - Auth-aware PostgREST access for typed data queries
 - Auth-aware Edge Functions access
 - Auth-aware Storage access
-- One importable sample that shows login, insert, query, optional function invocation, and sign-out
+- One importable sample that shows login, insert, query, optional function invocation, authenticated storage actions, and sign-out
 
 This package does **not** claim broad Unity coverage for the whole repo. `Realtime` and the root server-side `OrangeDot.Supabase` package are outside this Unity slice.
 
@@ -46,6 +46,12 @@ The package exposes:
 - `Functions`
 - `Storage`
 
+It also adds a few thin sample-oriented helpers for:
+
+- text upload
+- user-prefix file listing
+- signed URL creation
+
 Typical composition:
 
 ```csharp
@@ -73,9 +79,9 @@ The sample contains:
 
 - `AuthAndDataSampleController`
 - `UnityTodoItem`
-- a short sample README with SQL for the demo table, RLS policies, and an optional Edge Function
+- a short sample README with SQL for the demo table, storage policies, and an optional Edge Function
 
-The sample remains runnable with just auth + data. If you also deploy the optional `unity-hello` Edge Function from the sample README, the same scene can exercise the `Functions` client after sign-in. `Storage` is exposed by the runtime package in this slice, but the first sample scene does not use it yet.
+The sample remains runnable with just auth + data. If you also deploy the optional `unity-hello` Edge Function from the sample README, the same scene can exercise the `Functions` client after sign-in. The same scene now also covers authenticated storage upload, listing, and signed URL creation against a pre-created bucket.
 
 The controller uses `OnGUI`, so you can test it quickly by:
 

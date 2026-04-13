@@ -7,6 +7,9 @@ This sample is the first Unity-facing slice for the repo:
 - insert a row into a user-owned table
 - query that same table through `Postgrest`
 - optionally invoke an authenticated Edge Function
+- upload text bytes to a user-scoped path in Storage
+- list files for the signed-in user prefix
+- create a signed URL for the last uploaded object
 - sign out and clear local state
 
 ## Demo Table
@@ -46,6 +49,34 @@ with check (auth.uid() = owner_id);
 
 The sample uses `UnitySessionPersistence(Application.persistentDataPath)` so the last session is restored across runs.
 
+## Storage Bucket
+
+Create a private bucket named `unity-sample` in Supabase Storage before running the storage part of the sample.
+
+Then add authenticated policies scoped to the current user's top-level folder:
+
+```sql
+create policy "unity_sample_select_own_objects"
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id = 'unity-sample'
+  and (storage.foldername(name))[1] = (select auth.uid()::text)
+);
+
+create policy "unity_sample_insert_own_objects"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'unity-sample'
+  and (storage.foldername(name))[1] = (select auth.uid()::text)
+);
+```
+
+The sample uploads text to a deterministic object path under `<user-id>/...` inside the `unity-sample` bucket, lists files under that same prefix, and creates a signed URL for the last uploaded object.
+
 ## Optional Edge Function
 
 If you want to exercise the `Functions` surface from the same scene, deploy a simple function named `unity-hello`:
@@ -73,3 +104,14 @@ supabase functions deploy unity-hello
 ```
 
 After you sign in through the sample scene, click `Invoke Function` to POST the current user context and display the response in the UI.
+
+## Suggested Demo Flow
+
+1. Press `Initialize`.
+2. Sign in with a real user account.
+3. Insert and load rows from `unity_todos`.
+4. Optionally invoke `unity-hello`.
+5. Upload sample bytes to `unity-sample`.
+6. List bucket files for the current user prefix.
+7. Create a signed URL for the uploaded object.
+8. Sign out and confirm rows, function output, file list, and signed URL state are cleared.
