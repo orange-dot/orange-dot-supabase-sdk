@@ -241,6 +241,182 @@ internal sealed class ShellLifecycleTraceExpectationBuilder
     }
 }
 
+internal abstract record StartupServiceTraceScenarioStep
+{
+    internal sealed record StartRequested() : StartupServiceTraceScenarioStep;
+
+    internal sealed record PrePublishWindowEntered() : StartupServiceTraceScenarioStep;
+
+    internal sealed record ReadyCompleted() : StartupServiceTraceScenarioStep;
+
+    internal sealed record StartFaulted() : StartupServiceTraceScenarioStep;
+
+    internal sealed record StartCanceled() : StartupServiceTraceScenarioStep;
+
+    internal sealed record StopRequested() : StartupServiceTraceScenarioStep;
+
+    internal sealed record ReadyPublicationSkippedBecauseStopping() : StartupServiceTraceScenarioStep;
+
+    internal sealed record Deny(string MemberName) : StartupServiceTraceScenarioStep;
+
+    internal sealed record Allow(string MemberName) : StartupServiceTraceScenarioStep;
+}
+
+internal sealed class StartupServiceTraceExpectationBuilder
+{
+    private readonly StartupServiceStateMachine _startup;
+    private readonly LifecycleStateMachine _lifecycle;
+    private readonly List<RuntimeTraceEvent> _events = [];
+
+    private StartupServiceTraceExpectationBuilder(
+        StartupServiceStateMachine startup,
+        LifecycleStateMachine lifecycle)
+    {
+        _startup = startup;
+        _lifecycle = lifecycle;
+    }
+
+    internal static StartupServiceTraceExpectationBuilder Create(
+        StartupServiceStateMachine? startup = null,
+        LifecycleStateMachine? lifecycle = null)
+    {
+        return new StartupServiceTraceExpectationBuilder(
+            startup ?? new StartupServiceStateMachine(),
+            lifecycle ?? new LifecycleStateMachine());
+    }
+
+    internal StartupServiceTraceExpectationBuilder Apply(params StartupServiceTraceScenarioStep[] steps)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+
+        foreach (var step in steps)
+        {
+            ArgumentNullException.ThrowIfNull(step);
+
+            switch (step)
+            {
+                case StartupServiceTraceScenarioStep.StartRequested:
+                    _startup.StartRequested();
+
+                    if (_lifecycle.Phase == LifecyclePhase.Configured)
+                    {
+                        _lifecycle.LoadPersistedSessionStart();
+                        _lifecycle.LoadPersistedSessionComplete();
+                        _lifecycle.InitializeStart();
+                        _lifecycle.InitializeComplete();
+                    }
+
+                    AppendStartup(StartupTraceKind.StartRequested);
+                    break;
+                case StartupServiceTraceScenarioStep.PrePublishWindowEntered:
+                    _startup.EnterPrePublishWindow();
+                    AppendStartup(StartupTraceKind.PrePublishWindowEntered);
+                    break;
+                case StartupServiceTraceScenarioStep.ReadyCompleted:
+                    _startup.PublishReady();
+                    _lifecycle.SignalReady();
+                    AppendShellReadyCompleted();
+                    break;
+                case StartupServiceTraceScenarioStep.StartFaulted:
+                    _startup.FailStart();
+                    AppendStartup(StartupTraceKind.StartFaulted);
+                    _lifecycle.FailReady();
+                    AppendShellReadyFaulted();
+                    break;
+                case StartupServiceTraceScenarioStep.StartCanceled:
+                    _startup.CancelStart();
+                    AppendStartup(StartupTraceKind.StartCanceled);
+                    _lifecycle.CancelReady();
+                    AppendShellReadyCanceled();
+                    break;
+                case StartupServiceTraceScenarioStep.StopRequested:
+                    _startup.RequestStop();
+                    AppendStartup(StartupTraceKind.StopRequested);
+
+                    if (IsPreReadyPhase(_lifecycle.Phase))
+                    {
+                        _lifecycle.CancelReady();
+                        AppendShellReadyCanceled();
+                    }
+
+                    break;
+                case StartupServiceTraceScenarioStep.ReadyPublicationSkippedBecauseStopping:
+                    _startup.SkipReadyPublicationBecauseStopping();
+                    AppendStartup(StartupTraceKind.ReadyPublicationSkippedBecauseStopping);
+                    break;
+                case StartupServiceTraceScenarioStep.Deny(var memberName):
+                    _lifecycle.AttemptPublicOperation();
+                    AppendShellDenied(memberName);
+                    break;
+                case StartupServiceTraceScenarioStep.Allow(var memberName):
+                    _lifecycle.AttemptPublicOperation();
+                    AppendShellAllowed(memberName);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(step), step, "Unknown startup trace scenario step.");
+            }
+        }
+
+        return this;
+    }
+
+    internal StartupServiceTraceExpectationBuilder AppendStartup(StartupTraceKind kind)
+    {
+        _events.Add(new StartupTraceEvent(kind));
+        return this;
+    }
+
+    internal StartupServiceTraceExpectationBuilder AppendShellDenied(string memberName)
+    {
+        _events.Add(new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessDenied, memberName));
+        return this;
+    }
+
+    internal StartupServiceTraceExpectationBuilder AppendShellReadyCompleted()
+    {
+        _events.Add(new LifecycleTraceEvent(LifecycleTraceKind.ReadyCompleted));
+        return this;
+    }
+
+    internal StartupServiceTraceExpectationBuilder AppendShellReadyFaulted()
+    {
+        _events.Add(new LifecycleTraceEvent(LifecycleTraceKind.ReadyFaulted));
+        return this;
+    }
+
+    internal StartupServiceTraceExpectationBuilder AppendShellReadyCanceled()
+    {
+        _events.Add(new LifecycleTraceEvent(LifecycleTraceKind.ReadyCanceled));
+        return this;
+    }
+
+    internal StartupServiceTraceExpectationBuilder AppendShellAllowed(string memberName)
+    {
+        _events.Add(new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessAllowed, memberName));
+        return this;
+    }
+
+    internal RuntimeTraceEvent[] Build()
+    {
+        return _events.ToArray();
+    }
+
+    internal StartupServiceStateMachineSnapshot CaptureStartupSnapshot()
+    {
+        return _startup.CaptureSnapshot();
+    }
+
+    internal LifecycleStateMachineSnapshot CaptureLifecycleSnapshot()
+    {
+        return _lifecycle.CaptureSnapshot();
+    }
+
+    private static bool IsPreReadyPhase(LifecyclePhase phase)
+    {
+        return phase is LifecyclePhase.Configured or LifecyclePhase.LoadingSession or LifecyclePhase.Initializing;
+    }
+}
+
 internal static class RuntimeTraceAssert
 {
     internal static void EqualSequence(IEnumerable<RuntimeTraceEvent> expected, IReadOnlyList<RuntimeTraceEvent> actual)

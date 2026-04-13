@@ -19,6 +19,7 @@ internal sealed class SupabaseStartupService : IHostedService
     private readonly ILoggerFactory _loggerFactory;
     private readonly AuthStateObserver _authStateObserver;
     private readonly IMeterFactory? _meterFactory;
+    private readonly IRuntimeTraceSink _traceSink;
     private readonly object _lifecycleGate = new();
     private SupabaseClient? _client;
     private bool _stopping;
@@ -32,7 +33,8 @@ internal sealed class SupabaseStartupService : IHostedService
         ILogger<SupabaseStartupService> logger,
         ILoggerFactory loggerFactory,
         AuthStateObserver authStateObserver,
-        IMeterFactory? meterFactory = null)
+        IMeterFactory? meterFactory = null,
+        IRuntimeTraceSink? traceSink = null)
     {
         _options = options;
         _shell = shell;
@@ -40,6 +42,7 @@ internal sealed class SupabaseStartupService : IHostedService
         _loggerFactory = loggerFactory;
         _authStateObserver = authStateObserver;
         _meterFactory = meterFactory;
+        _traceSink = traceSink ?? NoOpRuntimeTraceSink.Instance;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -53,14 +56,17 @@ internal sealed class SupabaseStartupService : IHostedService
 
         try
         {
+            _traceSink.Record(new StartupTraceEvent(StartupTraceKind.StartRequested));
             var runtimeContext = new SupabaseRuntimeContext(
                 _authStateObserver,
                 _loggerFactory,
                 _meterFactory,
-                _options.Value.SessionStore ?? NoOpSupabaseSessionStore.Instance);
+                _options.Value.SessionStore ?? NoOpSupabaseSessionStore.Instance,
+                _traceSink);
             var configured = SupabaseClient.Configure(_options.Value, runtimeContext);
             var hydrated = await configured.LoadPersistedSessionAsync().ConfigureAwait(false);
             var client = await hydrated.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            _traceSink.Record(new StartupTraceEvent(StartupTraceKind.PrePublishWindowEntered));
             var beforePublishTestHookAsync = BeforePublishTestHookAsync;
 
             if (beforePublishTestHookAsync is not null)
@@ -72,6 +78,7 @@ internal sealed class SupabaseStartupService : IHostedService
             {
                 if (_stopping)
                 {
+                    _traceSink.Record(new StartupTraceEvent(StartupTraceKind.ReadyPublicationSkippedBecauseStopping));
                     client.Dispose();
                     return;
                 }
@@ -86,6 +93,7 @@ internal sealed class SupabaseStartupService : IHostedService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            _traceSink.Record(new StartupTraceEvent(StartupTraceKind.StartCanceled));
             _shell.SetInitializationCanceled(cancellationToken);
             metrics?.RecordStartup("canceled");
             activity?.SetStatus(ActivityStatusCode.Error, "canceled");
@@ -94,6 +102,7 @@ internal sealed class SupabaseStartupService : IHostedService
         }
         catch (Exception exception)
         {
+            _traceSink.Record(new StartupTraceEvent(StartupTraceKind.StartFaulted));
             _shell.SetInitializationFailed(exception);
             metrics?.RecordStartup("failure");
             activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
@@ -104,6 +113,8 @@ internal sealed class SupabaseStartupService : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        _traceSink.Record(new StartupTraceEvent(StartupTraceKind.StopRequested));
+
         lock (_lifecycleGate)
         {
             _stopping = true;

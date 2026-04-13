@@ -61,6 +61,18 @@ internal sealed record BindingProjectionTraceEvent(
     long PendingRefreshVersion,
     long ProjectedVersion) : RuntimeTraceEvent;
 
+internal enum StartupTraceKind
+{
+    StartRequested,
+    PrePublishWindowEntered,
+    ReadyPublicationSkippedBecauseStopping,
+    StopRequested,
+    StartCanceled,
+    StartFaulted
+}
+
+internal sealed record StartupTraceEvent(StartupTraceKind Kind) : RuntimeTraceEvent;
+
 internal enum LifecycleTraceKind
 {
     PublicAccessDenied,

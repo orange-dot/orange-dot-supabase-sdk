@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
             return Microsoft.Extensions.Options.Options.Create(options);
         });
 
+        services.TryAddSingleton<IRuntimeTraceSink>(_ => NoOpRuntimeTraceSink.Instance);
         services.TryAddSingleton<AuthStateObserver>();
         services.TryAddSingleton<IAuthStateObserver>(serviceProvider => serviceProvider.GetRequiredService<AuthStateObserver>());
         services.TryAddSingleton<SupabaseClientShell>();

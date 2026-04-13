@@ -67,6 +67,44 @@ public sealed class RuntimeTraceExpectationBuilderTests
         Assert.Equal(1, snapshot.ChildCalls);
     }
 
+    [Fact]
+    public void Startup_builder_updates_trace_and_snapshot_for_stop_before_publish_path()
+    {
+        var builder = StartupServiceTraceExpectationBuilder
+            .Create()
+            .Apply(
+                new StartupServiceTraceScenarioStep.StopRequested(),
+                new StartupServiceTraceScenarioStep.StartRequested(),
+                new StartupServiceTraceScenarioStep.PrePublishWindowEntered(),
+                new StartupServiceTraceScenarioStep.ReadyPublicationSkippedBecauseStopping(),
+                new StartupServiceTraceScenarioStep.Deny("Auth"));
+
+        RuntimeTraceAssert.EqualSequence(
+            [
+                new StartupTraceEvent(StartupTraceKind.StopRequested),
+                new LifecycleTraceEvent(LifecycleTraceKind.ReadyCanceled),
+                new StartupTraceEvent(StartupTraceKind.StartRequested),
+                new StartupTraceEvent(StartupTraceKind.PrePublishWindowEntered),
+                new StartupTraceEvent(StartupTraceKind.ReadyPublicationSkippedBecauseStopping),
+                new LifecycleTraceEvent(LifecycleTraceKind.PublicAccessDenied, "Auth")
+            ],
+            builder.Build());
+
+        var startup = builder.CaptureStartupSnapshot();
+        Assert.Equal(StartupServicePhase.PublicationSkippedBecauseStopping, startup.Phase);
+        Assert.True(startup.StopRequested);
+        Assert.Equal(1, startup.StartAttempts);
+        Assert.Equal(1, startup.StopAttempts);
+        Assert.Equal(1, startup.PrePublishWindows);
+        Assert.Equal(1, startup.PublicationSkips);
+
+        var lifecycle = builder.CaptureLifecycleSnapshot();
+        Assert.Equal(LifecyclePhase.Canceled, lifecycle.Phase);
+        Assert.Equal(1, lifecycle.PublicAttempts);
+        Assert.Equal(1, lifecycle.PublicDenied);
+        Assert.Equal(0, lifecycle.ChildCalls);
+    }
+
     private static RuntimeTraceEvent CreateAuthTrace(
         AuthTraceKind kind,
         long canonicalVersion,
