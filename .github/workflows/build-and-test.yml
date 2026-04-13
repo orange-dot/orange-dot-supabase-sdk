@@ -1,0 +1,127 @@
+name: Build And Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  validate-vectors:
+    name: Validate test vectors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install check-jsonschema
+        run: pip install check-jsonschema
+
+      - name: Validate
+        run: bash scripts/validate-test-vectors.sh
+
+  tla-check:
+    name: TLC ${{ matrix.model.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - name: auth propagation model
+            script: scripts/run-auth-tlc.sh
+          - name: hosted lifecycle model
+            script: scripts/run-lifecycle-tlc.sh
+    env:
+      TLA_VERSION: 1.7.4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Run TLC
+        run: TLA_TOOLS_DIR="$RUNNER_TEMP/tla" bash ${{ matrix.model.script }}
+
+  build-and-test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore OrangeDot.Supabase.sln
+
+      - name: Build
+        run: dotnet build OrangeDot.Supabase.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/OrangeDot.Supabase.Tests/OrangeDot.Supabase.Tests.csproj --configuration Release --no-build
+
+  integration-tests:
+    name: ubuntu-latest integration
+    needs:
+      - build-and-test
+      - tla-check
+    runs-on: ubuntu-latest
+    env:
+      ORANGEDOT_SUPABASE_RUN_INTEGRATION: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.84.2
+
+      - name: Supabase CLI Version
+        run: supabase --version
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: Supabase Status
+        run: supabase status
+
+      - name: Integration Test net8.0
+        run: dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release -f net8.0
+
+      - name: Integration Test net10.0
+        run: dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release -f net10.0
+
+      - name: Docker Containers
+        if: failure()
+        run: docker ps -a

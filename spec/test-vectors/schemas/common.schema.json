@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["id", "title", "initial_state", "events", "expected", "invariants"],
+  "properties": {
+    "id":            { "type": "string", "pattern": "^(auth|lifecycle|urls)_\\d{3}_" },
+    "title":         { "type": "string", "minLength": 1 },
+    "initial_state": { "type": "object" },
+    "events":        { "type": "array", "minItems": 1 },
+    "expected":      { "type": "object" },
+    "invariants": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^INV-[A-Z]{2,3}-\\d{3}$" },
+      "minItems": 1
+    },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false
+}

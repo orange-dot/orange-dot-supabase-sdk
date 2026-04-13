@@ -1,0 +1,23 @@
+{
+  "id": "urls_003_self_host_local",
+  "title": "Self-hosted localhost keeps host and port for all endpoints",
+  "initial_state": {
+    "base_url": "http://localhost:54321"
+  },
+  "events": [
+    { "type": "derive_all_endpoints" }
+  ],
+  "expected": {
+    "normalized_base_url": "http://localhost:54321",
+    "auth_url": "http://localhost:54321/auth/v1",
+    "rest_url": "http://localhost:54321/rest/v1",
+    "realtime_url": "ws://localhost:54321/realtime/v1",
+    "storage_url": "http://localhost:54321/storage/v1",
+    "functions_url": "http://localhost:54321/functions/v1"
+  },
+  "invariants": [
+    "INV-URL-001",
+    "INV-URL-002"
+  ],
+  "notes": "Local stack baseline for integration work."
+}

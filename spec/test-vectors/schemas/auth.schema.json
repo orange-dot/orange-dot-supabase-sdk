@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [{ "$ref": "common.schema.json" }],
+  "properties": {
+    "id": { "pattern": "^auth_\\d{3}_" },
+    "initial_state": {
+      "type": "object",
+      "required": ["auth_state", "canonical_version", "pending_refresh_version", "live_bindings", "projected_versions"],
+      "properties": {
+        "auth_state":              { "type": "string", "enum": ["Authenticated", "SignedOut"] },
+        "canonical_version":       { "type": "integer", "minimum": 0 },
+        "pending_refresh_version": { "type": "integer", "minimum": 0 },
+        "live_bindings": {
+          "type": "object",
+          "required": ["Postgrest", "Realtime", "Storage", "Functions"],
+          "properties": {
+            "Postgrest": { "type": "boolean" },
+            "Realtime":  { "type": "boolean" },
+            "Storage":   { "type": "boolean" },
+            "Functions": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "projected_versions": {
+          "type": "object",
+          "required": ["Postgrest", "Realtime", "Storage", "Functions"],
+          "properties": {
+            "Postgrest": { "type": "integer", "minimum": 0 },
+            "Realtime":  { "type": "integer", "minimum": 0 },
+            "Storage":   { "type": "integer", "minimum": 0 },
+            "Functions": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected": {
+      "type": "object",
+      "required": ["auth_state", "canonical_version", "pending_refresh_version", "live_bindings", "projected_versions"],
+      "properties": {
+        "auth_state":              { "type": "string", "enum": ["Authenticated", "SignedOut"] },
+        "canonical_version":       { "type": "integer", "minimum": 0 },
+        "pending_refresh_version": { "type": "integer", "minimum": 0 },
+        "live_bindings": {
+          "type": "object",
+          "required": ["Postgrest", "Realtime", "Storage", "Functions"],
+          "properties": {
+            "Postgrest": { "type": "boolean" },
+            "Realtime":  { "type": "boolean" },
+            "Storage":   { "type": "boolean" },
+            "Functions": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "projected_versions": {
+          "type": "object",
+          "required": ["Postgrest", "Realtime", "Storage", "Functions"],
+          "properties": {
+            "Postgrest": { "type": "integer", "minimum": 0 },
+            "Realtime":  { "type": "integer", "minimum": 0 },
+            "Storage":   { "type": "integer", "minimum": 0 },
+            "Functions": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "events": {
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type":    { "enum": ["start_binding", "begin_refresh", "complete_refresh", "project_binding", "sign_out", "ignore_stale_refresh_result"] },
+          "binding": { "enum": ["Postgrest", "Realtime", "Storage", "Functions"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

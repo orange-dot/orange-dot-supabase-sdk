@@ -1,0 +1,46 @@
+{
+  "id": "auth_001_late_subscriber_replay",
+  "title": "A late subscriber immediately receives the current authenticated version",
+  "initial_state": {
+    "auth_state": "Authenticated",
+    "canonical_version": 1,
+    "pending_refresh_version": 0,
+    "live_bindings": {
+      "Postgrest": false,
+      "Realtime": false,
+      "Storage": false,
+      "Functions": false
+    },
+    "projected_versions": {
+      "Postgrest": 0,
+      "Realtime": 0,
+      "Storage": 0,
+      "Functions": 0
+    }
+  },
+  "events": [
+    { "type": "start_binding", "binding": "Postgrest" }
+  ],
+  "expected": {
+    "auth_state": "Authenticated",
+    "canonical_version": 1,
+    "pending_refresh_version": 0,
+    "live_bindings": {
+      "Postgrest": true,
+      "Realtime": false,
+      "Storage": false,
+      "Functions": false
+    },
+    "projected_versions": {
+      "Postgrest": 1,
+      "Realtime": 0,
+      "Storage": 0,
+      "Functions": 0
+    }
+  },
+  "invariants": [
+    "INV-AU-001",
+    "INV-BD-001"
+  ],
+  "notes": "Replay-on-subscribe is immediate for a newly live binding."
+}

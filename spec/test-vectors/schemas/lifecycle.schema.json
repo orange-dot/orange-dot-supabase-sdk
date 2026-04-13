@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [{ "$ref": "common.schema.json" }],
+  "properties": {
+    "id": { "pattern": "^lifecycle_\\d{3}_" },
+    "initial_state": {
+      "type": "object",
+      "required": ["phase", "child_calls", "public_attempts", "public_denied"],
+      "properties": {
+        "phase":           { "type": "string", "enum": ["Configured", "LoadingSession", "Initializing", "Ready", "Disposed"] },
+        "child_calls":     { "type": "integer", "minimum": 0 },
+        "public_attempts": { "type": "integer", "minimum": 0 },
+        "public_denied":   { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "expected": {
+      "type": "object",
+      "required": ["phase", "child_calls", "public_attempts", "public_denied"],
+      "properties": {
+        "phase":           { "type": "string", "enum": ["Configured", "LoadingSession", "Initializing", "Ready", "Disposed"] },
+        "child_calls":     { "type": "integer", "minimum": 0 },
+        "public_attempts": { "type": "integer", "minimum": 0 },
+        "public_denied":   { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "events": {
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "enum": ["attempt_public_operation", "load_persisted_session_start", "load_persisted_session_complete", "initialize_start", "initialize_complete", "signal_ready"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
