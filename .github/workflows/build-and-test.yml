@@ -35,7 +35,6 @@ jobs:
           - name: hosted lifecycle model
             script: scripts/run-lifecycle-tlc.sh
     env:
-      TLA_TOOLS_DIR: ${{ runner.temp }}/tla
       TLA_VERSION: 1.7.4
     steps:
       - name: Checkout
@@ -48,7 +47,7 @@ jobs:
           java-version: "17"
 
       - name: Run TLC
-        run: bash ${{ matrix.model.script }}
+        run: TLA_TOOLS_DIR="$RUNNER_TEMP/tla" bash ${{ matrix.model.script }}
 
   build-and-test:
     name: ${{ matrix.os }}
