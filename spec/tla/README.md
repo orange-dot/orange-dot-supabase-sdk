@@ -1,6 +1,8 @@
-# TLA+ Verification Notes
+# TLA+ Model Notes
 
-This directory holds the TLA+ model used for auth propagation ordering and replay behavior.
+This directory holds the TLA+ model used for selected auth propagation ordering properties.
+
+It is a supplemental model. It does not prove the .NET implementation end to end.
 
 ## Files
 
@@ -17,7 +19,7 @@ From the repository root:
 
 The script downloads `tla2tools.jar` into `~/tools/tla/` if needed and runs TLC against `AuthPropagation.tla` with `AuthPropagation.cfg`.
 
-## Verified run
+## Recorded TLC Run
 
 Last recorded successful TLC run:
 

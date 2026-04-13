@@ -1,6 +1,6 @@
-# Verification Spec
+# Specification Notes
 
-Purpose: hold the verification-oriented artifacts for the orchestration layer.
+Purpose: hold supplemental model and scenario artifacts for the orchestration layer.
 
 This directory is the source of truth for:
 
@@ -8,7 +8,7 @@ This directory is the source of truth for:
 - authority ownership at the orchestration boundary
 - lifecycle and auth-state machines
 - one TLA+ model for auth ordering and propagation properties
-- test-vector inputs for future replay and executable-spec work
+- JSON scenario inputs used by the replay-model tests under `tests/OrangeDot.Supabase.Tests/Spec/`
 
 ## Contents
 
@@ -26,17 +26,16 @@ This directory is the source of truth for:
 These artifacts are for the orchestration layer only.
 
 - They do not model child-module internals.
-- They do not attempt full theorem-prover coverage of the .NET implementation.
-- They are intended to keep the spec layer thin, reviewable, and directly consumable by tests and interviews.
+- They do not prove the full .NET implementation.
+- The current vector tests replay dedicated test models. They do not execute the production runtime directly.
+- They are intended to keep the model/scenario layer thin and reviewable.
 
 ## Intended use
 
-1. Lock the authority model and state machines before implementation expands.
-2. Keep invariants centralized so TLA, vectors, and future tests reference the same rule IDs.
-3. Keep pure reducers and runtime orchestration aligned with the same transitions.
-4. Use TLA+ only where it adds signal beyond the type system: auth replay, sign-out clearing, and refresh ordering.
-5. Keep replay vectors focused on behavioral scenarios that map directly into future tests.
+1. Keep invariants centralized so TLA, vectors, and tests reference the same rule IDs.
+2. Keep the recorded auth and lifecycle scenarios stable as test inputs.
+3. Use TLA+ for a narrow set of auth-ordering properties where a small model is still useful.
 
 ## TLC Note
 
-`AuthPropagation.tla` is the only TLA+ artifact kept in this repository because it adds real signal beyond the typed API surface. See [`tla/README.md`](tla/README.md) for the recorded successful TLC run and rerun rule.
+`AuthPropagation.tla` is the only TLA+ model kept in this repository. See [`tla/README.md`](tla/README.md) for the recorded TLC run and rerun rule.

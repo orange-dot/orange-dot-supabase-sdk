@@ -4,3 +4,13 @@ spec/tla/states/
 TestResults/
 supabase/.branches/
 supabase/.temp/
+.agents/
+.claude/
+.codex
+.playwright-mcp/
+deep-research-report.md
+docs/rust-parity-baseline.md
+rust/
+upstream/
+rust/target/
+rust/Cargo.lock

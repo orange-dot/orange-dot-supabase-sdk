@@ -4,20 +4,17 @@
 
 Targets: `net8.0`, `net10.0`
 
-`orange-dot-supabase-sdk` is a source-first reimplementation of the orchestration layer of the Supabase C# SDK. It keeps the upstream child modules pinned and unchanged, and focuses on the top-level client surface where lifecycle, DI, readiness, auth propagation, URL derivation, observability, table convenience, and runnable usage samples are defined.
+`orange-dot-supabase-sdk` is a source-first prototype for the orchestration layer of a Supabase C# client. It keeps the upstream child modules pinned and unchanged, and focuses on the top-level client surface where lifecycle, DI, readiness, auth propagation, URL derivation, observability, table convenience, and runnable usage samples are defined.
 
-Today the repo includes a working stateful client, a DI/hosted construction path, a stateless client, a realtime-aware `Table<T>()` wrapper, runnable ASP.NET Core server samples, typed orchestration-layer exceptions, unit-test coverage, and an opt-in local-Supabase integration test slice around the composition boundary. It does not yet ship as a NuGet package.
+Status: prototype. Source-first repo with runnable server-side samples. It does not yet ship as a NuGet package.
 
-> Current status: usable from source, honest about its prototype scope, with runnable server-side samples included.
+## Repository Focus
 
-## Why this repo exists
-
-- Typed lifecycle states: construction is `Configure -> LoadPersistedSessionAsync -> InitializeAsync`, so wrong-order startup bugs are not left to prose or convention.
-- Replayable auth observation: child clients react to one auth-state stream instead of imperative token fan-out from the orchestrator.
-- Standard .NET observability: `ILogger<T>`, `ActivitySource`, and `IMeterFactory` are first-class instead of custom debugger singletons.
-- Structured URL derivation: hosted and self-hosted endpoints are derived through `Uri` handling and table-driven tests.
-
-See [docs/architecture-contrasts.md](docs/architecture-contrasts.md) for the full design rationale.
+- typed lifecycle with `Configure -> LoadPersistedSessionAsync -> InitializeAsync`
+- auth-state observation and child-client bindings
+- URL derivation for hosted and self-hosted deployments
+- server-side DI helpers and stateless client factories
+- runnable ASP.NET Core samples and local integration coverage
 
 ## What's implemented
 
@@ -32,15 +29,35 @@ See [docs/architecture-contrasts.md](docs/architecture-contrasts.md) for the ful
 - `SupabaseUrls` derivation for hosted and self-hosted deployments
 - Standard observability hooks and typed orchestration-layer exceptions
 
-## Build From Source
+## Prerequisites
 
-This repo consumes pinned upstream child modules as git submodules. Initialize them before building:
+This repo consumes pinned upstream child modules as git submodules.
 
 ```bash
 git clone https://github.com/orange-dot/orange-dot-supabase-sdk.git
 cd orange-dot-supabase-sdk
 git submodule update --init --recursive
-dotnet test OrangeDot.Supabase.sln --configuration Release
+```
+
+For the default multi-target test commands, the local machine needs:
+
+- .NET 10 SDK
+- `Microsoft.NETCore.App` 8.0.x runtime
+- `Microsoft.NETCore.App` 10.0.x runtime
+
+Check the installed runtimes with:
+
+```bash
+dotnet --list-runtimes
+```
+
+If `Microsoft.NETCore.App 8.0.x` is missing, install the .NET 8 runtime or SDK before running the default test commands. The GitHub Actions workflow installs .NET from `global.json` and also installs `8.0.x` explicitly for the same reason.
+
+## Build And Unit Tests
+
+```bash
+dotnet build OrangeDot.Supabase.sln --configuration Release
+dotnet test tests/OrangeDot.Supabase.Tests/OrangeDot.Supabase.Tests.csproj --configuration Release
 ```
 
 The library project references the pinned child projects directly from `modules/`.
@@ -50,13 +67,12 @@ The library project references the pinned child projects directly from `modules/
 The repo also carries a minimal local `supabase/` setup and an opt-in integration test project.
 
 ```bash
-git submodule update --init --recursive
 supabase start
-ORANGEDOT_SUPABASE_RUN_INTEGRATION=1 dotnet test OrangeDot.Supabase.sln --configuration Release
+ORANGEDOT_SUPABASE_RUN_INTEGRATION=1 dotnet test tests/OrangeDot.Supabase.IntegrationTests/OrangeDot.Supabase.IntegrationTests.csproj --configuration Release -f net10.0
 ```
 
-Without `ORANGEDOT_SUPABASE_RUN_INTEGRATION=1`, integration tests are skipped by default so normal CI and local unit-test runs stay green without a local Supabase stack.
-GitHub Actions also runs the live integration suite on Ubuntu; Windows and macOS remain unit-test only.
+Without `ORANGEDOT_SUPABASE_RUN_INTEGRATION=1`, integration tests are skipped by default so normal unit-test runs stay green without a local Supabase stack.
+GitHub Actions runs the live integration suite on Ubuntu. Windows and macOS remain unit-test only.
 CI currently pins Supabase CLI `2.84.2` for reproducible integration runs.
 
 The local stack now includes repo-managed storage and edge-function fixtures:
@@ -69,14 +85,14 @@ The local stack now includes repo-managed storage and edge-function fixtures:
 Those fixtures support both smoke checks and the research-workspace sample scenario.
 The `ResearchWorkspace` live slice now covers both direct SDK/RLS behavior and an authenticated sample-API HTTP flow end to end.
 
-## ResearchWorkspace Layering
+## Samples
 
 `samples/ResearchWorkspaceApi` is intentionally split into two layers:
 
 - SDK-backed backend: the ASP.NET sample uses `AddSupabaseServer(...)`, `ISupabaseStatelessClientFactory`, and the Orange Dot orchestration layer for delegated PostgREST, Storage, Functions, and Realtime behavior.
 - Thin browser transport: the embedded cockpit is static HTML/CSS/JavaScript that talks to the sample API with `fetch`, and its signup/login helper exchanges credentials against local Supabase Auth over HTTP using the publishable key.
 
-That split is deliberate. The sample demonstrates the SDK where this repo adds value today: server-side orchestration, delegated auth propagation, typed error handling, and runnable end-to-end flows. The browser shell stays lightweight and does not introduce a separate frontend SDK wrapper.
+The browser shell stays lightweight and does not introduce a separate frontend SDK wrapper.
 
 If you use the local Homebrew-based setup from this repo and see a Supabase CLI update warning:
 
@@ -222,17 +238,22 @@ var channel = await client.Table<Todo>().On(
 
 ## Further Reading
 
-- [Architecture contrasts](docs/architecture-contrasts.md)
 - [Prototype scope / decision log](docs/decision-log.md)
-- [Project positioning](docs/project-positioning.md)
-- [Verification artifacts](spec/README.md)
+- [Specification notes](spec/README.md)
 - [Minimal server sample](samples/ServerMinimalApi/README.md)
 - [Research workspace sample with browser cockpit and Swagger](samples/ResearchWorkspaceApi/README.md)
+
+## What This Repo Is Not
+
+- not a NuGet package
+- not a full rewrite of the child modules under `modules/`
+- not a production-hardened SDK
+- not a formal proof of the runtime implementation
 
 ## Current Limitations
 
 - Source-first repo only; no NuGet publishing flow yet
-- Source-first repo only; sample apps are runnable but still intentionally educational rather than production-hardened
+- sample apps are runnable but still intentionally educational rather than production-hardened
 - Child modules under `modules/` are pinned upstream dependencies and are not patched locally
 - Stateless server factory calls currently allocate fresh underlying HTTP clients; `IHttpClientFactory` integration is future work
 - Storage server-path behavior still depends on upstream module internals around helper initialization order

@@ -1,6 +1,8 @@
 # Test Vectors
 
-This directory holds canonical JSON scenarios for future replay tests and executable-spec checks.
+This directory holds canonical JSON scenarios used by the replay-model tests under `tests/OrangeDot.Supabase.Tests/Spec/`.
+
+These vectors are stable scenario inputs. They do not drive the production runtime directly.
 
 ## Canonical Shape
 
