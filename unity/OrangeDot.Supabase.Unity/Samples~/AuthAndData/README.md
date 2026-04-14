@@ -73,9 +73,22 @@ with check (
   bucket_id = 'unity-sample'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
+
+create policy "unity_sample_update_own_objects"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'unity-sample'
+  and (storage.foldername(name))[1] = (select auth.uid()::text)
+)
+with check (
+  bucket_id = 'unity-sample'
+  and (storage.foldername(name))[1] = (select auth.uid()::text)
+);
 ```
 
-The sample uploads text to a deterministic object path under `<user-id>/...` inside the `unity-sample` bucket, lists files under that same prefix, and creates a signed URL for the last uploaded object.
+The sample uploads text to a deterministic object path under `<user-id>/...` inside the `unity-sample` bucket, lists files under that same prefix, and creates a signed URL for the last uploaded object. The upload path uses `upsert`, so the update policy is required if you upload the same sample file name more than once.
 
 ## Optional Edge Function
 

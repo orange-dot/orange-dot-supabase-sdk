@@ -205,8 +205,7 @@ public sealed class SupabaseUnityClient : IDisposable
     {
         var postgrestClient = new global::Supabase.Postgrest.Client(Urls.RestUrl, new global::Supabase.Postgrest.ClientOptions
         {
-            Schema = options.Schema,
-            Headers = CreateDefaultHeaders(options.AnonKey)
+            Schema = options.Schema
         });
 
         postgrestClient.GetHeaders = CreateDynamicHeaders;

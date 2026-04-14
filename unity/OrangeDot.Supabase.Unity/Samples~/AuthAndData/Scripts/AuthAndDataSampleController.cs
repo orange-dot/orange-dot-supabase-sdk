@@ -278,7 +278,7 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
         {
             var response = await _client!
                 .Table<UnityTodoItem>()
-                .Where(item => item.OwnerId == _client.CurrentUser!.Id)
+                .Filter("owner_id", Operator.Equals, _client.CurrentUser!.Id)
                 .Order(item => item.CreatedAt, Ordering.Descending)
                 .Get();
 
@@ -454,6 +454,9 @@ public sealed class AuthAndDataSampleController : MonoBehaviour
                 FunctionName,
                 new Dictionary<string, object>
                 {
+                    ["source"] = string.IsNullOrWhiteSpace(FunctionMessage)
+                        ? "unity-auth-and-data-sample"
+                        : FunctionMessage,
                     ["message"] = string.IsNullOrWhiteSpace(FunctionMessage)
                         ? "Hello from Unity"
                         : FunctionMessage,

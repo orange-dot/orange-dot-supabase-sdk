@@ -1,0 +1,3 @@
+# Cover Letter Paragraph
+
+I’m especially interested in this role because it sits at the intersection of C# API design, developer experience, and open-source SDK work. To explore that space directly, I built a Supabase-focused C# SDK repo that emphasizes idiomatic .NET integration, typed client composition, runnable samples, and local integration testing, and I also developed a Unity-first prototype line that packages portable auth, PostgREST, functions, and storage modules into a runnable Unity sample. That work pushed me to think not just about feature coverage, but about how an SDK should feel to .NET and Unity developers using it in real projects.

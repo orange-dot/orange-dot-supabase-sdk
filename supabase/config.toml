@@ -42,6 +42,9 @@ public = true
 [storage.buckets.research-artifacts]
 public = false
 
+[storage.buckets.unity-sample]
+public = false
+
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"

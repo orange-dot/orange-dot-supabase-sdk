@@ -7,6 +7,10 @@ SMOKE_ROOT="$REPO_ROOT/unity/SmokeHost"
 STAGE_ROOT="$SMOKE_ROOT/LocalPackages"
 SAMPLE_ROOT="$SMOKE_ROOT/Assets/Samples/AuthAndData"
 
+if [[ "${UNITY_SMOKE_BOOTSTRAP_BACKEND:-1}" == "1" ]]; then
+  bash "$SCRIPT_DIR/bootstrap-local-smokehost-backend.sh"
+fi
+
 sync_package() {
   local package_name="$1"
   local source_dir="$2"
@@ -47,7 +51,6 @@ sync_package "com.orange-dot.supabase.unity" "$REPO_ROOT/unity/OrangeDot.Supabas
 
 mkdir -p "$SAMPLE_ROOT"
 rsync -a --delete \
-  --exclude '.meta' \
   "$REPO_ROOT/unity/OrangeDot.Supabase.Unity/Samples~/AuthAndData/" "$SAMPLE_ROOT/"
 
 printf 'Prepared staged Unity packages under %s\n' "$STAGE_ROOT"
